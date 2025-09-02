@@ -7,7 +7,7 @@ A Google Chrome extension that allows you to seamlessly import **FA Full-Time fo
 - Scrape fixtures directly from FA Full-Time pages.
 - Export fixtures to CSV with correct headers.
 - Bulk import CSV into 360Player team calendars.
-- Options for private/public events, meeting times, and adding admins/players.
+- Options for private/public events, meeting times, and adding new admins/players automatically when they are added to the team.
 
 ## Installation
 
