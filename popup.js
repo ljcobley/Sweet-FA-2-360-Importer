@@ -399,6 +399,41 @@
   });
 
   // ============== IMPORT (360Player) ==============
+// Display team name from 360Player calendar page
+async function display360PlayerTeamName() {
+  // Only run if import tab is active and 360Player tab is open
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  if (!tab?.url || !/^https?:\/\/app\.360player\.com\//.test(tab.url)) return;
+  try {
+    const [result] = await chrome.scripting.executeScript({
+      target: { tabId: tab.id },
+      func: () => {
+        // Find the strong element with the team name
+        const el = document.querySelector('strong.HU89T05lxSvu6hqh3zEq');
+        return el ? el.textContent : '';
+      }
+    });
+    const teamName = result?.result || '';
+    let teamNameDisplay = document.getElementById('teamNameDisplay');
+    if (!teamNameDisplay) {
+      teamNameDisplay = document.createElement('div');
+      teamNameDisplay.id = 'teamNameDisplay';
+      teamNameDisplay.className = 'my-team-card';
+      teamNameDisplay.style.marginBottom = '18px';
+      const importSection = document.getElementById('screen-import');
+      if (importSection) importSection.insertBefore(teamNameDisplay, importSection.firstChild);
+    }
+    teamNameDisplay.innerHTML = teamName ? `<span class="icon">📅</span> <span>Selected Calendar Team: <span style='color:#0d47a1;'>${teamName}</span></span>` : '';
+    teamNameDisplay.style.display = teamName ? 'flex' : 'none';
+  } catch (e) {
+    // Fail silently
+  }
+}
+
+// Run when import tab is activated
+tabImport?.addEventListener('click', () => {
+  setTimeout(display360PlayerTeamName, 300);
+});
   const statusDot = document.querySelector('#status .dot');
   const statusText = document.querySelector('#status .text');
   function setStatus(state, text) {
@@ -484,4 +519,10 @@
 
   // Init
   decideDefaultScreenAndRestore();
+  // Also display team name if import tab is shown on load
+  setTimeout(() => {
+    if (screenImport && screenImport.classList.contains('active')) {
+      display360PlayerTeamName();
+    }
+  }, 350);
 })();
