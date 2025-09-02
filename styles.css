@@ -1,0 +1,28 @@
+* { box-sizing: border-box; }
+body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 12px; width: 580px; }
+h1 { font-size: 18px; margin: 0 0 4px; }
+h2 { font-size: 16px; margin: 12px 0 6px; }
+.sub { margin: 0 0 12px; color: #555; }
+section { margin-bottom: 12px; }
+label { display: block; font-weight: 600; margin-bottom: 6px; }
+input[type="text"], input[type="number"], select { width: 100%; padding: 6px 8px; border: 1px solid #ccc; border-radius: 8px; }
+textarea#csv, textarea#csv-import {
+  width: 100%; height: 200px; resize: vertical; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; white-space: pre;
+  padding: 10px 12px; border: 1px solid #ddd; border-radius: 8px;
+}
+.row { display: flex; gap: 12px; }
+.row > label { flex: 1 1 0; }
+.hint { font-size: 12px; color: #666; font-weight: 400; }
+.actions, .csv-actions { display: flex; gap: 8px; justify-content: flex-start; margin-top: 8px; }
+button { padding: 8px 12px; border-radius: 8px; border: 1px solid #ccc; background: #1976d2; color: white; cursor: pointer; }
+button:hover { background: #1565c0; }
+button[disabled] { opacity: 0.6; cursor: default; }
+.status { display: flex; align-items: center; gap: 8px; padding: 8px; border: 1px solid #eee; border-radius: 8px; background: #fafafa; }
+.dot { width: 10px; height: 10px; border-radius: 50%; background: #aaa; }
+.dot.idle    { background: #aaa; }
+.dot.working { background: #f6b500; }
+.dot.ok      { background: #2e7d32; }
+.dot.warn    { background: #ef6c00; }
+.dot.error   { background: #c62828; }
+.text { font-size: 13px; color: #222; }
+.csvbox { display: none; }

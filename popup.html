@@ -1,0 +1,156 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Football Fixture Tools</title>
+    <link rel="stylesheet" href="styles.css" />
+    <style>
+      .screen { display: none; }
+      .screen.active { display: block; }
+      .banner {
+        margin: 8px 0 12px; padding: 10px 12px;
+        border: 1px solid #e0e0e0; background: #fafafa; border-radius: 8px;
+        font-size: 13px; color: #333;
+      }
+      .split-actions { display:flex; gap:8px; align-items:center; margin-top:8px; }
+      .muted { color:#666; font-size:12px; }
+      .small { font-size:12px; }
+      .linkish { color:#1976d2; cursor:pointer; text-decoration: underline; }
+      .h-group { display:flex; align-items:center; gap:6px; }
+
+      /* Debug section */
+      details.debug { margin-top: 8px; border:1px dashed #ddd; border-radius:8px; padding:8px 10px; }
+      details.debug > summary { cursor:pointer; font-weight:600; }
+      .debug-body { margin-top:8px; display:grid; gap:8px; }
+      .debug-row { display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
+      .hidden { display:none !important; }
+    </style>
+  </head>
+  <body>
+    <h1>Football Fixture Tools</h1>
+
+    <!-- Switcher (manual override) -->
+    <div class="h-group small" style="margin-bottom:10px;">
+      <span>View:</span>
+      <button id="btnShowExport">Export (Full-Time)</button>
+      <button id="btnShowImport">Import (360Player)</button>
+    </div>
+
+    <!-- ========== EXPORT SCREEN (Full-Time) ========== -->
+    <section id="screen-export" class="screen">
+      <h2>Export from FA Full-Time</h2>
+      <div class="banner" id="export-banner">
+        This tool works when your active tab has an FA Full-Time widget open.<br/>
+        <span class="muted">Open or switch to a tab like <code>fulltime.thefa.com</code>, then press <b>Generate CSV</b>.</span><br/>
+        Want to import into 360Player? <span class="linkish" id="goToImportHint">Open a tab at <b>app.360player.com</b></span> and switch to the Import screen.
+      </div>
+
+      <div class="row">
+        <label>Duration (mins)
+          <input id="duration" type="number" min="1" step="1" value="60" />
+        </label>
+        <label>Meet before (mins)
+          <input id="meetBefore" type="number" min="0" step="1" value="30" />
+        </label>
+      </div>
+
+      <div class="row">
+        <label>Title prefix
+          <input id="titlePrefix" type="text" value="League Game vs " />
+          <span class="hint">This becomes the start of the <em>title</em> column (prefix + opponent)</span>
+        </label>
+      </div>
+
+      <div class="row">
+        <label>Visibility
+          <select id="visibility">
+            <option value="private" selected>private</option>
+            <option value="public">public</option>
+          </select>
+        </label>
+        <label>Add admins?
+          <select id="addAdmins">
+            <option value="FALSE" selected>FALSE</option>
+            <option value="TRUE">TRUE</option>
+          </select>
+        </label>
+        <label>Add players?
+          <select id="addPlayers">
+            <option value="FALSE" selected>FALSE</option>
+            <option value="TRUE">TRUE</option>
+          </select>
+        </label>
+      </div>
+
+      <div class="row">
+        <label>My team (optional)
+          <input id="myTeam" type="text" placeholder="Leave blank to auto-detect" />
+          <span class="hint">If blank, we’ll try to infer the team that appears in every match.</span>
+        </label>
+      </div>
+
+      <div class="split-actions">
+        <button id="generate">Generate CSV</button>
+        <div class="status" id="status-export"></div>
+      </div>
+
+      <div class="csvbox" id="csvBox">
+        <textarea id="csv" readonly></textarea>
+        <div class="csv-actions">
+          <button id="copy">Copy CSV</button>
+          <button id="download">Download CSV</button>
+          <button id="pushToImport">Push CSV to Import Tab</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ========== IMPORT SCREEN (360Player) ========== -->
+    <section id="screen-import" class="screen">
+      <h2>Import to 360Player</h2>
+      <div class="banner" id="import-banner">
+        This tool works when your active tab is a 360Player team calendar.<br/>
+        <span class="muted">Open or switch to a tab at <code>app.360player.com</code>, then press <b>Run on current tab</b>.</span><br/>
+        Need CSVs from FA Full-Time first? <span class="linkish" id="goToExportHint">Open a tab at <b>fulltime.thefa.com</b></span> and switch to the Export screen.
+      </div>
+
+      <section>
+        <label for="csv-import">CSV</label>
+        <textarea id="csv-import" placeholder="Paste CSV here"></textarea>
+      </section>
+
+      <!-- Debugging Tools: collapsed by default -->
+      <details class="debug">
+        <summary>Debugging Tools</summary>
+        <div class="debug-body">
+          <div class="debug-row">
+            <label class="small">
+              <input type="checkbox" id="dbgOverrideMode">
+              Override mode
+            </label>
+            <div id="dbgModeOptions" class="small hidden" style="display:flex; gap:12px; align-items:center;">
+              <label><input type="radio" name="dbgMode" value="highlight"> Highlight only</label>
+              <label><input type="radio" name="dbgMode" value="type"> Type only (no save)</label>
+              <label><input type="radio" name="dbgMode" value="full" checked> Full run (type + save)</label>
+            </div>
+          </div>
+
+          <div class="debug-row small">
+            <label><input type="checkbox" id="validateOnly"> Validate selectors (no run)</label>
+            <label><input type="checkbox" id="dedupe" checked> Dedupe (future use)</label>
+          </div>
+        </div>
+      </details>
+
+      <div class="actions" style="margin-top:10px;">
+        <button id="run">Run on current tab</button>
+      </div>
+
+      <section id="status" class="status">
+        <div class="dot idle"></div>
+        <div class="text">Idle.</div>
+      </section>
+    </section>
+
+    <script src="popup.js"></script>
+  </body>
+</html>
