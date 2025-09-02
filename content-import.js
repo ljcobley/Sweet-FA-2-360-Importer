@@ -801,17 +801,49 @@ async function fillCommonFields(scope, row) {
 
 // Simple checkbox/radio label toggles (used for add_admins / add_players)
 function toggleByLabel(scope, text, desired = true) {
-  const aria = qa(scope, '[role="checkbox"][aria-label]').find(x => x.getAttribute('aria-label').trim() === text);
-  if (aria) {
-    mark(aria);
-    if (IMPORT_OPTIONS.mode !== 'highlight') {
-      const now = aria.getAttribute('aria-checked') === 'true';
-      if (now !== desired) aria.click();
+  // Map label text to checkbox name
+  const nameMap = {
+    'Add new admins/staff as organizers to this event': 'autoInviteAdminAndStaff',
+    'Add new players as participants to this event': 'autoInviteUsers'
+  };
+  const name = nameMap[text];
+  if (name) {
+    const input = (scope || document).querySelector(`input[type="checkbox"][name="${name}"]`);
+    if (input) {
+      mark(input);
+      if (IMPORT_OPTIONS.mode !== 'highlight') {
+        if (input.checked !== desired) {
+          input.click();
+          input.dispatchEvent(new Event('input', { bubbles: true }));
+          input.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+      }
+      return true;
     }
+  }
+  // Fallback: original logic
+  const lab = findLabelByText(scope, text);
+  if (lab) {
+    const htmlFor = lab.getAttribute('for');
+    let input = htmlFor ? (scope || document).getElementById(htmlFor) : null;
+    if (!input) {
+      input = lab.querySelector('input[type="checkbox"]') ||
+              lab.parentElement?.querySelector('input[type="checkbox"]');
+    }
+    if (input) {
+      mark(input);
+      if (IMPORT_OPTIONS.mode !== 'highlight') {
+        if (input.checked !== desired) {
+          input.click();
+          input.dispatchEvent(new Event('input', { bubbles: true }));
+          input.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+      }
+      return true;
+    }
+    if (IMPORT_OPTIONS.mode !== 'highlight') lab.click();
     return true;
   }
-  const lab = findLabelByText(scope, text);
-  if (lab) { mark(lab); if (IMPORT_OPTIONS.mode !== 'highlight') lab.click(); return true; }
   return false;
 }
 
@@ -824,9 +856,10 @@ async function fillGameFields(scope, row) {
     await sleep(150);
   }
 
-  // 2) Opponent (first pass)
+  // 2) Opponent
   if (row.opponent) {
     await commitOpponent(scope, row.opponent);
+    await sleep(120); // Give React a beat to capture state
   }
 
   // 3) Kickoff time
@@ -837,13 +870,15 @@ async function fillGameFields(scope, row) {
     ], 8000);
     if (koEl) await fillInput(scope, koEl, row.kickoff_time);
     else console.warn('Missing field (kickoff) after wait.');
+    await sleep(120);
   }
 
-  // 4) Duration
+  // 4) Duration (AFTER opponent and kickoff)
   if (row.duration) {
     const durEl = await waitAndGet(scope, 'input[name="duration"][type="number"]', 8000);
     if (durEl) await fillInput(scope, durEl, String(row.duration));
     else console.warn('Missing field (duration) after wait.');
+    await sleep(120);
   }
 
   // 5) Admin/player toggles
@@ -854,11 +889,6 @@ async function fillGameFields(scope, row) {
   if (row.add_players != null) {
     toggleByLabel(scope, 'Add new players as participants to this event',
       String(row.add_players).toLowerCase() === 'true');
-  }
-
-  // 6) Opponent (final safety re-commit *after* everything else)
-  if (row.opponent) {
-    await commitOpponent(scope, row.opponent);
   }
 }
 
@@ -891,6 +921,21 @@ async function createOne(row) {
     await commitOpponent(scope, row.opponent);
   }
 
+  // 4c) Final Kickoff time commit just before saving (some UIs re-render on focus/scroll)
+  if (row.kickoff_time) {
+    const koEl = await waitAndGet(scope, [
+      SELECTORS.game.kickoff,
+      'input[name="time"][type="time"]'
+    ], 3000);
+    if (koEl) await fillInput(scope, koEl, row.kickoff_time);
+  }
+
+  // 4d) Final Duration commit just before saving
+  if (row.duration) {
+    const durEl = await waitAndGet(scope, 'input[name="duration"][type="number"]', 3000);
+    if (durEl) await fillInput(scope, durEl, String(row.duration));
+  }
+
   // 5) Save + Finish confirm
   if (IMPORT_OPTIONS.mode !== 'full') {
     showBanner(IMPORT_OPTIONS.mode === 'type' ? "Type-only: Save skipped" : "Highlight-only: Save skipped");
@@ -900,20 +945,34 @@ async function createOne(row) {
   const clickedSave = await clickSaveIfPresent(scope);
   if (!clickedSave) console.warn('[Bulk Import] Save button not found/clickable; attempting Finish (if any).');
 
-  // If the form stays visible for a moment, re-commit once more
-  if (row.opponent) {
-    await sleep(150);
-    await commitOpponent(scope, row.opponent);
+  // If the form stays visible for a moment, re-commit kickoff time and duration only
+  if (row.kickoff_time) {
+    const koEl = await waitAndGet(scope, [
+      SELECTORS.game.kickoff,
+      'input[name="time"][type="time"]'
+    ], 3000);
+    if (koEl) await fillInput(scope, koEl, row.kickoff_time);
+  }
+  if (row.duration) {
+    const durEl = await waitAndGet(scope, 'input[name="duration"][type="number"]', 3000);
+    if (durEl) await fillInput(scope, durEl, String(row.duration));
   }
 
   await sleep(600);
 
   const clickedFinish = await clickFinishIfPresent(document);
   if (clickedFinish) {
-    // tiny window where the form is still present — last chance commit
-    if (row.opponent) {
-      await sleep(120);
-      await commitOpponent(document, row.opponent);
+    // Last chance kickoff time and duration commit
+    if (row.kickoff_time) {
+      const koEl = await waitAndGet(document, [
+        SELECTORS.game.kickoff,
+        'input[name="time"][type="time"]'
+      ], 3000);
+      if (koEl) await fillInput(document, koEl, row.kickoff_time);
+    }
+    if (row.duration) {
+      const durEl = await waitAndGet(document, 'input[name="duration"][type="number"]', 3000);
+      if (durEl) await fillInput(document, durEl, String(row.duration));
     }
     await sleep(600);
   }
