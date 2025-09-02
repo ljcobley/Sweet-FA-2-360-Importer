@@ -1,3 +1,6 @@
+#importConfirmModal {
+  backdrop-filter: blur(2px);
+}
 .hidden {
   display:none !important;
 }

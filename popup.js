@@ -1,4 +1,25 @@
 (() => {
+  // Modal confirmation helpers
+  function showImportConfirmModal(detailsHtml, onConfirm) {
+    const modal = document.getElementById('importConfirmModal');
+    const detailsDiv = document.getElementById('importConfirmDetails');
+    const confirmBtn = document.getElementById('confirmImportBtn');
+    const cancelBtn = document.getElementById('cancelImportBtn');
+    if (modal && detailsDiv && confirmBtn && cancelBtn) {
+      detailsDiv.innerHTML = detailsHtml;
+      modal.classList.remove('hidden');
+      // Remove previous listeners
+      confirmBtn.onclick = null;
+      cancelBtn.onclick = null;
+      confirmBtn.onclick = () => {
+        modal.classList.add('hidden');
+        onConfirm();
+      };
+      cancelBtn.onclick = () => {
+        modal.classList.add('hidden');
+      };
+    }
+  }
   // Modal preview helpers
   function showImportPreviewModal(tableHtml) {
     const modal = document.getElementById('importPreviewModal');
@@ -581,7 +602,7 @@ tabImport?.addEventListener('click', () => {
         const row = lines[i].split(',');
         if (row.length !== header.length) errors.push(`Row ${i+1} has ${row.length} columns, expected ${header.length}.`);
       }
-      return { valid: errors.length === 0, errors };
+      return { valid: errors.length === 0, errors, header, lines };
     }
     const validation = validateCsv(csv);
     if (!validation.valid) {
@@ -589,59 +610,97 @@ tabImport?.addEventListener('click', () => {
       return;
     }
 
-    setStatus('working', 'Sending to page…');
-    // Persist what user is about to run, so a reopen still has it
-    await saveToStorage({
-      [STORAGE_KEYS.lastCsv]: { csv, ts: Date.now() },
-      [STORAGE_KEYS.lastView]: 'import'
-    });
-
-    const options = {
-      mode: getMode(),
-      validateOnly: $('validateOnly')?.checked || false,
-      dedupe: $('dedupe')?.checked !== false // default true
-    };
-
-    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (!tab?.id) { setStatus('error', 'No active tab found.'); return; }
-
-    // Send start message
-    const startResp = await new Promise((resolve) => {
-      chrome.tabs.sendMessage(tab.id, { type: 'TEAM_BULK_IMPORT', payload: { csv, options } }, (resp) => {
-        if (chrome.runtime.lastError) {
-          resolve({ ok: false, error: chrome.runtime.lastError.message });
-          return;
-        }
-        resolve(resp || { ok: false });
-      });
-    });
-
-    if (!startResp?.ok) {
-      setStatus('error', startResp?.error || 'Could not start — is the 360Player tab open?');
-      return;
+    // Identify 'my team' from CSV using same logic as export
+    function inferMyTeamFromCsv(header, lines) {
+      const idxHome = header.indexOf('home');
+      const idxAway = header.indexOf('away');
+      if (idxHome === -1 || idxAway === -1) return '';
+      const counts = new Map();
+      for (let i = 1; i < lines.length; ++i) {
+        const row = lines[i].split(',');
+        if (row.length <= Math.max(idxHome, idxAway)) continue;
+        const home = row[idxHome].trim();
+        const away = row[idxAway].trim();
+        counts.set(home, (counts.get(home) || 0) + 1);
+        counts.set(away, (counts.get(away) || 0) + 1);
+      }
+      const total = lines.length - 1;
+      const candidates = [...counts.entries()].filter(([, c]) => c === total).map(([n]) => n);
+      if (candidates.length === 1) return candidates[0];
+      return candidates.length ? candidates.join(', ') : '';
     }
-    setStatus('working', 'Started. Watching progress…');
+    const myTeam = inferMyTeamFromCsv(validation.header, validation.lines);
 
-    // Poll status
-    const result = await new Promise((resolve) => {
-      const started = Date.now();
-      const maxMs = 120000, intervalMs = 1500;
-      const timer = setInterval(() => {
-        if (Date.now() - started > maxMs) {
-          clearInterval(timer);
-          resolve({ finished: false, timeout: true });
-          return;
-        }
-        chrome.tabs.sendMessage(tab.id, { type: 'TEAM_BULK_STATUS' }, (status) => {
-          if (chrome.runtime.lastError) return; // ignore during navigation
-          if (status?.finished) { clearInterval(timer); resolve(status); }
+    // Get team calendar name from import tab (if available)
+    let calendarTeam = '';
+    const teamNameDisplay = document.getElementById('teamNameDisplay');
+    if (teamNameDisplay && teamNameDisplay.textContent) {
+      const match = teamNameDisplay.textContent.match(/Selected Calendar Team: ([^<]+)/);
+      if (match) calendarTeam = match[1];
+    }
+
+    // Count number of events to import
+    const numEvents = validation.lines.length - 1;
+
+    // Show confirmation modal
+    let detailsHtml = `<div style='margin-bottom:10px;'>Identified <b>My Team</b> from CSV: <span style='color:#0d47a1;'>${myTeam || '(not found)'}</span></div>`;
+    detailsHtml += `<div style='margin-bottom:10px;'>Target <b>Team Calendar</b>: <span style='color:#0d47a1;'>${calendarTeam || '(not found)'}</span></div>`;
+    detailsHtml += `<div style='margin-bottom:10px;'><b>Number of events to import:</b> <span style='color:#0d47a1;'>${numEvents}</span></div>`;
+    showImportConfirmModal(detailsHtml, async () => {
+      setStatus('working', 'Sending to page…');
+      // Persist what user is about to run, so a reopen still has it
+      await saveToStorage({
+        [STORAGE_KEYS.lastCsv]: { csv, ts: Date.now() },
+        [STORAGE_KEYS.lastView]: 'import'
+      });
+
+      const options = {
+        mode: getMode(),
+        validateOnly: $('validateOnly')?.checked || false,
+        dedupe: $('dedupe')?.checked !== false // default true
+      };
+
+      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+      if (!tab?.id) { setStatus('error', 'No active tab found.'); return; }
+
+      // Send start message
+      const startResp = await new Promise((resolve) => {
+        chrome.tabs.sendMessage(tab.id, { type: 'TEAM_BULK_IMPORT', payload: { csv, options } }, (resp) => {
+          if (chrome.runtime.lastError) {
+            resolve({ ok: false, error: chrome.runtime.lastError.message });
+            return;
+          }
+          resolve(resp || { ok: false });
         });
-      }, intervalMs);
-    });
+      });
 
-    if (result.timeout) { setStatus('warn', 'Timed out waiting. Check the page.'); return; }
-    if (result.error) { setStatus('error', 'Failed: ' + result.error); return; }
-    setStatus('ok', 'Done.');
+      if (!startResp?.ok) {
+        setStatus('error', startResp?.error || 'Could not start — is the 360Player tab open?');
+        return;
+      }
+      setStatus('working', 'Started. Watching progress…');
+
+      // Poll status
+      const result = await new Promise((resolve) => {
+        const started = Date.now();
+        const maxMs = 120000, intervalMs = 1500;
+        const timer = setInterval(() => {
+          if (Date.now() - started > maxMs) {
+            clearInterval(timer);
+            resolve({ finished: false, timeout: true });
+            return;
+          }
+          chrome.tabs.sendMessage(tab.id, { type: 'TEAM_BULK_STATUS' }, (status) => {
+            if (chrome.runtime.lastError) return; // ignore during navigation
+            if (status?.finished) { clearInterval(timer); resolve(status); }
+          });
+        }, intervalMs);
+      });
+
+      if (result.timeout) { setStatus('warn', 'Timed out waiting. Check the page.'); return; }
+      if (result.error) { setStatus('error', 'Failed: ' + result.error); return; }
+      setStatus('ok', 'Done.');
+    });
   });
 
   // Init
