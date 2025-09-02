@@ -1,4 +1,4 @@
-# Sweet FA 360 Importer
+# Sweet FA 2 360 Importer
 
 A Google Chrome extension that allows you to seamlessly import **FA Full-Time football fixtures** into your **360Player team calendar**.
 
