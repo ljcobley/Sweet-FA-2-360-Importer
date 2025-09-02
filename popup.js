@@ -22,23 +22,26 @@
   const screenImport = $('screen-import');
   const statusExport = $('status-export');
 
-  // Manual screen switchers
-  $('btnShowExport')?.addEventListener('click', async () => {
-    await saveToStorage({ [STORAGE_KEYS.lastView]: 'export' });
-    show(screenExport); hide(screenImport);
-  });
-  $('btnShowImport')?.addEventListener('click', async () => {
-    await saveToStorage({ [STORAGE_KEYS.lastView]: 'import' });
-    show(screenImport); hide(screenExport);
-  });
-  $('goToImportHint')?.addEventListener('click', async () => {
-    await saveToStorage({ [STORAGE_KEYS.lastView]: 'import' });
-    show(screenImport); hide(screenExport);
-  });
-  $('goToExportHint')?.addEventListener('click', async () => {
-    await saveToStorage({ [STORAGE_KEYS.lastView]: 'export' });
-    show(screenExport); hide(screenImport);
-  });
+  // Tab switcher logic
+  const tabExport = document.getElementById('tabExport');
+  const tabImport = document.getElementById('tabImport');
+  function activateTab(tab) {
+    if (tab === 'export') {
+      tabExport.classList.add('active');
+      tabImport.classList.remove('active');
+      show(screenExport); hide(screenImport);
+      saveToStorage({ [STORAGE_KEYS.lastView]: 'export' });
+    } else {
+      tabImport.classList.add('active');
+      tabExport.classList.remove('active');
+      show(screenImport); hide(screenExport);
+      saveToStorage({ [STORAGE_KEYS.lastView]: 'import' });
+    }
+  }
+  tabExport?.addEventListener('click', () => activateTab('export'));
+  tabImport?.addEventListener('click', () => activateTab('import'));
+  $('goToImportHint')?.addEventListener('click', () => activateTab('import'));
+  $('goToExportHint')?.addEventListener('click', () => activateTab('export'));
 
   // Try to find a 360Player tab
   async function find360Tab() {
@@ -67,22 +70,22 @@
 
     // Prioritize: if afterPush flag set, go to Import view
     if (afterPush) {
-      show(screenImport); hide(screenExport);
+      activateTab('import');
       await saveToStorage({ [STORAGE_KEYS.afterPushFlag]: false, [STORAGE_KEYS.lastView]: 'import' });
       return;
     }
 
     // Otherwise decide based on active tab or user's last view
     if (isFT && !is360) {
-      show(screenExport); hide(screenImport);
+      activateTab('export');
       await saveToStorage({ [STORAGE_KEYS.lastView]: 'export' });
     } else if (is360 && !isFT) {
-      show(screenImport); hide(screenExport);
+      activateTab('import');
       await saveToStorage({ [STORAGE_KEYS.lastView]: 'import' });
     } else if (lastView === 'import') {
-      show(screenImport); hide(screenExport);
+      activateTab('import');
     } else if (lastView === 'export') {
-      show(screenExport); hide(screenImport);
+      activateTab('export');
     } else {
       // If unsure, show both so user sees everything
       show(screenExport);

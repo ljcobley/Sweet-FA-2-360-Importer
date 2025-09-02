@@ -27,66 +27,67 @@
     </style>
   </head>
   <body>
-    <h1>Football Fixture Tools</h1>
 
-    <!-- Switcher (manual override) -->
-    <div class="h-group small" style="margin-bottom:10px;">
-      <span>View:</span>
-      <button id="btnShowExport">Export (Full-Time)</button>
-      <button id="btnShowImport">Import (360Player)</button>
+    <div style="display:flex; justify-content:center; align-items:center; margin-bottom:18px;">
+  <img src="icons/icon_128x128.png" alt="Sweet FA to 360Player Importer" style="width:128px; height:128px; border-radius:16px; box-shadow:0 2px 8px rgba(30,40,90,0.10);" />
+    </div>
+
+    <div class="tab-switcher">
+      <div id="tabExport" class="tab active">Export (Full-Time)</div>
+      <div id="tabImport" class="tab">Import (360Player)</div>
     </div>
 
     <!-- ========== EXPORT SCREEN (Full-Time) ========== -->
-    <section id="screen-export" class="screen">
+    <section id="screen-export" class="screen card">
       <h2>Export from FA Full-Time</h2>
-      <div class="banner" id="export-banner">
-        This tool works when your active tab has an FA Full-Time widget open.<br/>
-        <span class="muted">Open or switch to a tab like <code>fulltime.thefa.com</code>, then press <b>Generate CSV</b>.</span><br/>
-        Want to import into 360Player? <span class="linkish" id="goToImportHint">Open a tab at <b>app.360player.com</b></span> and switch to the Import screen.
+      <div class="banner banner-export" id="export-banner">
+        <span class="banner-title">How to use:</span><br>
+        <span>This tool works when your active tab has an FA Full-Time widget open.</span><br>
+        <span class="muted">Open or switch to a tab like <code>fulltime.thefa.com</code>, then press <b>Generate CSV</b>.</span><br>
+        <span class="muted">Want to import into 360Player? <span class="linkish" id="goToImportHint">Open a tab at <b>app.360player.com</b></span> and switch to the Import screen.</span>
       </div>
 
-      <div class="row">
-        <label>Duration (mins)
-          <input id="duration" type="number" min="1" step="1" value="60" />
-        </label>
-        <label>Meet before (mins)
-          <input id="meetBefore" type="number" min="0" step="1" value="30" />
-        </label>
-      </div>
-
-      <div class="row">
-        <label>Title prefix
-          <input id="titlePrefix" type="text" value="League Game vs " />
-          <span class="hint">This becomes the start of the <em>title</em> column (prefix + opponent)</span>
-        </label>
-      </div>
-
-      <div class="row">
-        <label>Visibility
-          <select id="visibility">
-            <option value="private" selected>private</option>
-            <option value="public">public</option>
-          </select>
-        </label>
-        <label>Add admins?
-          <select id="addAdmins">
-            <option value="FALSE" selected>FALSE</option>
-            <option value="TRUE">TRUE</option>
-          </select>
-        </label>
-        <label>Add players?
-          <select id="addPlayers">
-            <option value="FALSE" selected>FALSE</option>
-            <option value="TRUE">TRUE</option>
-          </select>
-        </label>
-      </div>
-
-      <div class="row">
-        <label>My team (optional)
-          <input id="myTeam" type="text" placeholder="Leave blank to auto-detect" />
-          <span class="hint">If blank, we’ll try to infer the team that appears in every match.</span>
-        </label>
+      <div class="form-group">
+        <div class="row">
+          <label>Duration (mins)
+            <input id="duration" type="number" min="1" step="1" value="60" />
+          </label>
+          <label>Meet before (mins)
+            <input id="meetBefore" type="number" min="0" step="1" value="30" />
+          </label>
+        </div>
+        <div class="row">
+          <label>Title prefix
+            <input id="titlePrefix" type="text" value="League Game vs " />
+            <span class="hint">This becomes the start of the <em>title</em> column (prefix + opponent)</span>
+          </label>
+        </div>
+        <div class="row">
+          <label>Visibility
+            <select id="visibility">
+              <option value="private" selected>private</option>
+              <option value="public">public</option>
+            </select>
+          </label>
+          <label>Add admins?
+            <select id="addAdmins">
+              <option value="FALSE" selected>FALSE</option>
+              <option value="TRUE">TRUE</option>
+            </select>
+          </label>
+          <label>Add players?
+            <select id="addPlayers">
+              <option value="FALSE" selected>FALSE</option>
+              <option value="TRUE">TRUE</option>
+            </select>
+          </label>
+        </div>
+        <div class="row">
+          <label>My team (optional)
+            <input id="myTeam" type="text" placeholder="Leave blank to auto-detect" />
+            <span class="hint">If blank, we’ll try to infer the team that appears in every match.</span>
+          </label>
+        </div>
       </div>
 
       <div class="split-actions">
@@ -94,7 +95,7 @@
         <div class="status" id="status-export"></div>
       </div>
 
-      <div class="csvbox" id="csvBox">
+      <div class="csvbox csv-card" id="csvBox">
         <textarea id="csv" readonly></textarea>
         <div class="csv-actions">
           <button id="copy">Copy CSV</button>
@@ -105,21 +106,22 @@
     </section>
 
     <!-- ========== IMPORT SCREEN (360Player) ========== -->
-    <section id="screen-import" class="screen">
+    <section id="screen-import" class="screen card">
       <h2>Import to 360Player</h2>
-      <div class="banner" id="import-banner">
-        This tool works when your active tab is a 360Player team calendar.<br/>
-        <span class="muted">Open or switch to a tab at <code>app.360player.com</code>, then press <b>Run on current tab</b>.</span><br/>
-        Need CSVs from FA Full-Time first? <span class="linkish" id="goToExportHint">Open a tab at <b>fulltime.thefa.com</b></span> and switch to the Export screen.
+      <div class="banner banner-import" id="import-banner">
+        <span class="banner-title">How to use:</span><br>
+        <span>This tool works when your active tab is a 360Player team calendar.</span><br>
+        <span class="muted">Open or switch to a tab at <code>app.360player.com</code>, then press <b>Run on current tab</b>.</span><br>
+        <span class="muted">Need CSVs from FA Full-Time first? <span class="linkish" id="goToExportHint">Open a tab at <b>fulltime.thefa.com</b></span> and switch to the Export screen.</span>
       </div>
 
-      <section>
-        <label for="csv-import">CSV</label>
-        <textarea id="csv-import" placeholder="Paste CSV here"></textarea>
-      </section>
+      <div class="form-group">
+        <label for="csv-import">Paste CSV below:</label>
+        <textarea id="csv-import" class="import-area" placeholder="Paste CSV here"></textarea>
+      </div>
 
       <!-- Debugging Tools: collapsed by default -->
-      <details class="debug">
+      <details class="debug" style="margin-top:8px;">
         <summary>Debugging Tools</summary>
         <div class="debug-body">
           <div class="debug-row">
@@ -133,7 +135,6 @@
               <label><input type="radio" name="dbgMode" value="full" checked> Full run (type + save)</label>
             </div>
           </div>
-
           <div class="debug-row small">
             <label><input type="checkbox" id="validateOnly"> Validate selectors (no run)</label>
             <label><input type="checkbox" id="dedupe" checked> Dedupe (future use)</label>
@@ -141,11 +142,11 @@
         </div>
       </details>
 
-      <div class="actions" style="margin-top:10px;">
+      <div class="actions import-actions">
         <button id="run">Run on current tab</button>
       </div>
 
-      <section id="status" class="status">
+      <section id="status" class="status import-status">
         <div class="dot idle"></div>
         <div class="text">Idle.</div>
       </section>
