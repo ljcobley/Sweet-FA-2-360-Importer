@@ -1,4 +1,57 @@
 (() => {
+  // Popout table of match dates
+  const showDatesTableBtn = document.getElementById('showDatesTable');
+  if (showDatesTableBtn) {
+    showDatesTableBtn.addEventListener('click', () => {
+      const csv = document.getElementById('csv')?.value || '';
+      if (!csv.trim()) {
+        alert('No CSV data available. Please generate CSV first.');
+        return;
+      }
+      // Parse CSV and build table rows
+      const rows = csv.split('\n').map(r => {
+        // Handle quoted CSV values
+        const arr = [];
+        let cur = '', inQuotes = false;
+        for (let i = 0; i < r.length; ++i) {
+          const c = r[i];
+          if (c === '"') inQuotes = !inQuotes;
+          else if (c === ',' && !inQuotes) { arr.push(cur); cur = ''; }
+          else cur += c;
+        }
+        arr.push(cur);
+        return arr;
+      });
+      if (rows.length < 2) {
+        alert('No match data found.');
+        return;
+      }
+      // Get my team name from the display card if available
+      let myTeamName = '';
+      const myTeamDisplay = document.getElementById('myTeamDisplay');
+      if (myTeamDisplay && myTeamDisplay.textContent) {
+        const match = myTeamDisplay.textContent.match(/Identified My Team: (.+)/);
+        if (match) myTeamName = match[1];
+      }
+      // Build table with all columns
+      const header = rows[0];
+      let caption = 'All Match Data';
+      if (myTeamName) caption += ` (${myTeamName})`;
+      let tableHtml = `<html><head><title>${caption}</title><style>body{font-family:sans-serif;background:#f4f6fa;margin:24px;}table{border-collapse:collapse;width:100%;max-width:900px;margin:auto;}th,td{border:1px solid #b0bec5;padding:8px 12px;text-align:left;}th{background:#e3f2fd;}tr:nth-child(even){background:#f7f9fc;}caption{font-size:20px;font-weight:700;margin-bottom:16px;color:#1976d2;}</style></head><body><table><caption>${caption}</caption><thead><tr>`;
+      for (const col of header) tableHtml += `<th>${col}</th>`;
+      tableHtml += `</tr></thead><tbody>`;
+      for (let i = 1; i < rows.length; ++i) {
+        const r = rows[i];
+        tableHtml += '<tr>' + r.map(val => `<td>${val}</td>`).join('') + '</tr>';
+      }
+      tableHtml += '</tbody></table></body></html>';
+      const win = window.open('', 'MatchDatesTable', 'width=1000,height=700');
+      if (win) {
+        win.document.write(tableHtml);
+        win.document.close();
+      }
+    });
+  }
   // Helpers
   const $ = (id) => document.getElementById(id);
   const show = (el) => el.classList.add('active');
@@ -336,6 +389,8 @@
       const csvBox = document.getElementById('csvBox');
       if (csv && csvBox) {
         csvBox.classList.remove('hidden');
+        const showDatesTableBtn = document.getElementById('showDatesTable');
+        if (showDatesTableBtn) showDatesTableBtn.style.display = '';
       }
       setStatusExport(`Parsed ${rows.length - 1} matches.`);
 
