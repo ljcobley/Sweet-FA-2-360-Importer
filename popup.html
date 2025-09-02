@@ -40,55 +40,57 @@
     <!-- ========== EXPORT SCREEN (Full-Time) ========== -->
     <section id="screen-export" class="screen card">
       
-      <button id="showExportOptions" type="button">Show Global Export Options</button>
-      <div id="exportOptionsContainer" class="form-group hidden">
-        <button id="hideExportOptions" type="button" style="margin-bottom:10px;">Hide Global Export Options</button>
-        <div class="row">
-          <label>Duration (mins)
-            <input id="duration" type="number" min="1" step="1" value="60" />
-          </label>
-          <label>Meet before (mins)
-            <input id="meetBefore" type="number" min="0" step="1" value="30" />
-          </label>
+      <div class="center-actions">
+        <button id="showExportOptions" type="button">Show Global Export Options</button>
+        <button id="hideExportOptions" type="button" class="hidden">Hide Global Export Options</button>
+        <div id="exportOptionsContainer" class="form-group hidden">
+          <div class="row">
+            <label>Duration (mins)
+              <input id="duration" type="number" min="1" step="1" value="60" />
+            </label>
+            <label>Meet before (mins)
+              <input id="meetBefore" type="number" min="0" step="1" value="30" />
+            </label>
+          </div>
+          <div class="row">
+            <label>Title prefix
+              <input id="titlePrefix" type="text" value="League Game vs " />
+              <span class="hint">This becomes the start of the <em>title</em> column (prefix + opponent)</span>
+            </label>
+          </div>
+          <div class="row">
+            <label>Visibility
+              <select id="visibility">
+                <option value="private" selected>private</option>
+                <option value="public">public</option>
+              </select>
+            </label>
+            <label>Add admins?
+              <select id="addAdmins">
+                <option value="FALSE" selected>FALSE</option>
+                <option value="TRUE">TRUE</option>
+              </select>
+            </label>
+            <label>Add players?
+              <select id="addPlayers">
+                <option value="FALSE" selected>FALSE</option>
+                <option value="TRUE">TRUE</option>
+              </select>
+            </label>
+          </div>
+          <div class="row">
+            <label>My team (optional)
+              <input id="myTeam" type="text" placeholder="Leave blank to auto-detect" />
+              <span class="hint">If blank, we’ll try to infer the team that appears in every match.</span>
+            </label>
+          </div>
         </div>
-        <div class="row">
-          <label>Title prefix
-            <input id="titlePrefix" type="text" value="League Game vs " />
-            <span class="hint">This becomes the start of the <em>title</em> column (prefix + opponent)</span>
-          </label>
-        </div>
-        <div class="row">
-          <label>Visibility
-            <select id="visibility">
-              <option value="private" selected>private</option>
-              <option value="public">public</option>
-            </select>
-          </label>
-          <label>Add admins?
-            <select id="addAdmins">
-              <option value="FALSE" selected>FALSE</option>
-              <option value="TRUE">TRUE</option>
-            </select>
-          </label>
-          <label>Add players?
-            <select id="addPlayers">
-              <option value="FALSE" selected>FALSE</option>
-              <option value="TRUE">TRUE</option>
-            </select>
-          </label>
-        </div>
-        <div class="row">
-          <label>My team (optional)
-            <input id="myTeam" type="text" placeholder="Leave blank to auto-detect" />
-            <span class="hint">If blank, we’ll try to infer the team that appears in every match.</span>
-          </label>
-        </div>
-      </div>
-
-      <div class="split-actions">
         <button id="generate">Generate CSV</button>
         <div class="status" id="status-export"></div>
       </div>
+
+      <div class="split-actions">
+  <!-- split-actions removed, now handled by center-actions above -->
 
       <div class="csvbox csv-card" id="csvBox">
         <textarea id="csv" readonly></textarea>

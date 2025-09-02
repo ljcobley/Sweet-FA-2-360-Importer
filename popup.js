@@ -111,10 +111,12 @@
       showExportOptionsBtn.addEventListener('click', () => {
         exportOptionsContainer.classList.remove('hidden');
         showExportOptionsBtn.classList.add('hidden');
+        hideExportOptionsBtn.classList.remove('hidden');
       });
       hideExportOptionsBtn.addEventListener('click', () => {
         exportOptionsContainer.classList.add('hidden');
         showExportOptionsBtn.classList.remove('hidden');
+        hideExportOptionsBtn.classList.add('hidden');
       });
     }
   const elGen   = $('generate');
@@ -280,6 +282,19 @@
     chrome.downloads.download({ url, filename, saveAs: true }, () => URL.revokeObjectURL(url));
   }
 
+  // Show identified my team below Generate CSV
+  let myTeamDisplay = document.getElementById('myTeamDisplay');
+  if (!myTeamDisplay) {
+    myTeamDisplay = document.createElement('div');
+    myTeamDisplay.id = 'myTeamDisplay';
+    myTeamDisplay.className = 'my-team-card';
+    myTeamDisplay.style.display = 'none';
+    const genBtn = document.getElementById('generate');
+    if (genBtn && genBtn.parentNode) {
+      genBtn.parentNode.insertBefore(myTeamDisplay, genBtn.nextSibling);
+    }
+  }
+
   $('generate')?.addEventListener('click', async () => {
     try {
       $('generate').disabled = true;
@@ -295,12 +310,16 @@
       if (!basic || !basic.length) {
         setStatusExport("No Full-Time widget data found on this page.");
         $('generate').disabled = false;
+        myTeamDisplay.textContent = '';
         return;
       }
 
       setStatusExport("Building CSV…");
       const duration = Math.max(1, parseInt(($('duration')?.value || "60"), 10));
       const meetBefore = Math.max(0, parseInt(($('meetBefore')?.value || "30"), 10));
+
+      // Get my team value
+      const myTeamValue = inferMyTeam(basic, $('myTeam')?.value || "");
 
       const rows = buildFinalRows(basic, {
         durationMinutes: duration,
@@ -317,6 +336,15 @@
       $('csvBox').style.display = "block";
       setStatusExport(`Parsed ${rows.length - 1} matches.`);
 
+      // Display my team
+      if (myTeamValue) {
+        myTeamDisplay.innerHTML = `<span class="icon">⚽</span> <span>Identified My Team: <span style='color:#0d47a1;'>${myTeamValue}</span></span>`;
+        myTeamDisplay.style.display = 'flex';
+      } else {
+        myTeamDisplay.style.display = 'none';
+        myTeamDisplay.textContent = '';
+      }
+
       // Persist latest CSV so it survives popup closes
       await saveToStorage({ [STORAGE_KEYS.lastCsv]: { csv, ts: Date.now() } });
 
@@ -324,6 +352,7 @@
     } catch (err) {
       console.error(err);
       setStatusExport(err.message || "Error while generating CSV.");
+      myTeamDisplay.textContent = '';
     } finally {
       $('generate').disabled = false;
     }
