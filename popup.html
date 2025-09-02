@@ -86,7 +86,7 @@
           </div>
         </div>
   <button id="generate">Generate CSV</button>
-  <button id="showDatesTable" type="button" style="margin-top:8px; display:none;">Show Match Dates Table</button>
+  <!-- Removed old Show Match Dates Table button -->
   <div class="status" id="status-export"></div>
       </div>
 
@@ -94,7 +94,12 @@
   <!-- split-actions removed, now handled by center-actions above -->
 
       <div class="csvbox csv-card hidden" id="csvBox">
-        <textarea id="csv" readonly></textarea>
+        <div style="display:flex; align-items:center; width:100%; max-width:480px; position:relative;">
+          <textarea id="csv" readonly style="flex:1;"></textarea>
+          <button id="showDatesTableIcon" type="button" title="Show Table" style="position:absolute; right:8px; top:8px; background:transparent; border:none; padding:0; cursor:pointer; width:28px; height:28px; display:none;">
+            <img src="icons/icon_32x32.png" alt="Show Table" style="width:24px; height:24px; opacity:0.85;" />
+          </button>
+        </div>
         <div class="csv-actions">
           <button id="copy">Copy CSV</button>
           <button id="download">Download CSV</button>

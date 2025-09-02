@@ -195,6 +195,7 @@ button[disabled] {
   font-size: 14px;
   color: #222;
 }
+/* CSV box and card styles */
 .csvbox {
   display: none;
 }
@@ -207,6 +208,24 @@ button[disabled] {
   display: flex;
   flex-direction: column;
   align-items: center;
+}
+/* Small icon button for table */
+#showDatesTableIcon {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  width: 28px;
+  height: 28px;
+  display: none;
+  position: absolute;
+  right: 8px;
+  top: 8px;
+  padding: 0;
+}
+#showDatesTableIcon img {
+  width: 24px;
+  height: 24px;
+  opacity: 0.85;
 }
 textarea#csv, textarea#import-area, textarea#csv-import {
   width: 100%;

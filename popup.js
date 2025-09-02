@@ -1,8 +1,8 @@
 (() => {
-  // Popout table of match dates
-  const showDatesTableBtn = document.getElementById('showDatesTable');
-  if (showDatesTableBtn) {
-    showDatesTableBtn.addEventListener('click', () => {
+  // Popout table of match dates (icon button)
+  const showDatesTableIcon = document.getElementById('showDatesTableIcon');
+  if (showDatesTableIcon) {
+    showDatesTableIcon.addEventListener('click', () => {
       const csv = document.getElementById('csv')?.value || '';
       if (!csv.trim()) {
         alert('No CSV data available. Please generate CSV first.');
@@ -389,8 +389,8 @@
       const csvBox = document.getElementById('csvBox');
       if (csv && csvBox) {
         csvBox.classList.remove('hidden');
-        const showDatesTableBtn = document.getElementById('showDatesTable');
-        if (showDatesTableBtn) showDatesTableBtn.style.display = '';
+        const showDatesTableIcon = document.getElementById('showDatesTableIcon');
+        if (showDatesTableIcon) showDatesTableIcon.style.display = '';
       }
       setStatusExport(`Parsed ${rows.length - 1} matches.`);
 
