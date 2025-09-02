@@ -1,3 +1,16 @@
+#importResultModal {
+  backdrop-filter: blur(2px);
+}
+#importEventSummary {
+  font-size: 14px;
+}
+#importEventSummary .event-summary-row {
+  margin-bottom: 6px;
+  cursor: pointer;
+  color: #1976d2;
+  border-bottom: 1px dashed #b0bec5;
+  padding-bottom: 2px;
+}
 #importConfirmModal {
   backdrop-filter: blur(2px);
 }

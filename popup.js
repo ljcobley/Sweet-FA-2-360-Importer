@@ -1,4 +1,36 @@
 (() => {
+  // Modal for import result
+  function showImportResultModal(success, numAdded, eventSummaries) {
+    const modal = document.getElementById('importResultModal');
+    const detailsDiv = document.getElementById('importResultDetails');
+    const summaryDiv = document.getElementById('importEventSummary');
+    const closeBtn = document.getElementById('closeImportResultModal');
+    if (modal && detailsDiv && summaryDiv && closeBtn) {
+      detailsDiv.innerHTML = success
+        ? `<span style='color:#2e7d32; font-weight:600;'>Success!</span> Imported <b>${numAdded}</b> events.`
+        : `<span style='color:#c62828; font-weight:600;'>Failed</span> to import events.`;
+      if (success && eventSummaries && eventSummaries.length) {
+        let html = '<div><b>Click to show details:</b></div>';
+        eventSummaries.forEach((ev, idx) => {
+          html += `<div class='event-summary-row' data-idx='${idx}'>${ev.date} — ${ev.title}</div>`;
+        });
+        summaryDiv.innerHTML = html;
+        summaryDiv.onclick = (e) => {
+          const row = e.target.closest('.event-summary-row');
+          if (row) {
+            const idx = row.getAttribute('data-idx');
+            if (eventSummaries[idx]) {
+              alert(`Date: ${eventSummaries[idx].date}\nTitle: ${eventSummaries[idx].title}`);
+            }
+          }
+        };
+      } else {
+        summaryDiv.innerHTML = '';
+      }
+      modal.classList.remove('hidden');
+      closeBtn.onclick = () => { modal.classList.add('hidden'); };
+    }
+  }
   // Modal confirmation helpers
   function showImportConfirmModal(detailsHtml, onConfirm) {
     const modal = document.getElementById('importConfirmModal');
@@ -647,7 +679,7 @@ tabImport?.addEventListener('click', () => {
     detailsHtml += `<div style='margin-bottom:10px;'>Target <b>Team Calendar</b>: <span style='color:#0d47a1;'>${calendarTeam || '(not found)'}</span></div>`;
     detailsHtml += `<div style='margin-bottom:10px;'><b>Number of events to import:</b> <span style='color:#0d47a1;'>${numEvents}</span></div>`;
     showImportConfirmModal(detailsHtml, async () => {
-      setStatus('working', 'Sending to page…');
+      setStatus('working', 'Importing events…');
       // Persist what user is about to run, so a reopen still has it
       await saveToStorage({
         [STORAGE_KEYS.lastCsv]: { csv, ts: Date.now() },
@@ -674,11 +706,9 @@ tabImport?.addEventListener('click', () => {
         });
       });
 
-      if (!startResp?.ok) {
-        setStatus('error', startResp?.error || 'Could not start — is the 360Player tab open?');
-        return;
-      }
-      setStatus('working', 'Started. Watching progress…');
+      // Progress display
+      let progress = 0;
+      setStatus('working', `Importing events… (${progress}/${numEvents})`);
 
       // Poll status
       const result = await new Promise((resolve) => {
@@ -692,14 +722,41 @@ tabImport?.addEventListener('click', () => {
           }
           chrome.tabs.sendMessage(tab.id, { type: 'TEAM_BULK_STATUS' }, (status) => {
             if (chrome.runtime.lastError) return; // ignore during navigation
+            if (status?.progress != null) {
+              progress = status.progress;
+              setStatus('working', `Importing events… (${progress}/${numEvents})`);
+            }
             if (status?.finished) { clearInterval(timer); resolve(status); }
           });
         }, intervalMs);
       });
 
-      if (result.timeout) { setStatus('warn', 'Timed out waiting. Check the page.'); return; }
-      if (result.error) { setStatus('error', 'Failed: ' + result.error); return; }
+      // Prepare event summary (date and title)
+      let eventSummaries = [];
+      if (validation.header && validation.lines) {
+        const idxDate = validation.header.indexOf('date');
+        const idxTitle = validation.header.indexOf('title');
+        for (let i = 1; i < validation.lines.length; ++i) {
+          const row = validation.lines[i].split(',');
+          eventSummaries.push({
+            date: row[idxDate] || '',
+            title: row[idxTitle] || ''
+          });
+        }
+      }
+
+      if (result.timeout) {
+        setStatus('warn', 'Timed out waiting. Check the page.');
+        showImportResultModal(false, 0, []);
+        return;
+      }
+      if (result.error) {
+        setStatus('error', 'Failed: ' + result.error);
+        showImportResultModal(false, 0, []);
+        return;
+      }
       setStatus('ok', 'Done.');
+      showImportResultModal(true, numEvents, eventSummaries);
     });
   });
 
