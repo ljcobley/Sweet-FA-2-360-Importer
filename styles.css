@@ -146,7 +146,7 @@ input[type="text"], input[type="number"], select {
 .actions, .csv-actions, .import-actions {
   display: flex;
   gap: 10px;
-  justify-content: flex-start;
+  justify-content: center;
   margin-top: 10px;
 }
 button {
@@ -204,9 +204,13 @@ button[disabled] {
   box-shadow: 0 1px 6px rgba(30,40,90,0.04);
   padding: 14px 14px 10px 14px;
   margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 textarea#csv, textarea#import-area, textarea#csv-import {
   width: 100%;
+  max-width: 480px;
   height: 180px;
   resize: vertical;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
@@ -217,6 +221,8 @@ textarea#csv, textarea#import-area, textarea#csv-import {
   background: #fff;
   font-size: 14px;
   box-shadow: 0 1px 3px rgba(30,40,90,0.03);
+  margin-left: auto;
+  margin-right: auto;
 }
 .import-area {
   background: #f7f9fc;

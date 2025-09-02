@@ -333,7 +333,10 @@
 
       const csv = toCSV(rows);
       $('csv').value = csv;
-      $('csvBox').style.display = "block";
+      const csvBox = document.getElementById('csvBox');
+      if (csv && csvBox) {
+        csvBox.classList.remove('hidden');
+      }
       setStatusExport(`Parsed ${rows.length - 1} matches.`);
 
       // Display my team
