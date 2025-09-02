@@ -140,7 +140,16 @@
       </details>
 
       <div class="actions import-actions">
-        <button id="run">Run on current tab</button>
+  <button id="previewImport">Preview Import</button>
+  <button id="run">Run on current tab</button>
+    <!-- Modal for import preview -->
+    <div id="importPreviewModal" class="hidden" style="position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(30,40,90,0.18); z-index:9999; display:flex; align-items:center; justify-content:center;">
+      <div style="background:#fff; border-radius:14px; box-shadow:0 2px 12px rgba(30,40,90,0.18); padding:28px 32px; max-width:900px; width:90vw; max-height:80vh; overflow:auto; position:relative;">
+        <h2 style="margin-top:0; margin-bottom:18px; color:#1976d2;">Import Preview</h2>
+        <div id="importPreviewTable"></div>
+        <button id="closePreviewModal" style="position:absolute; top:16px; right:16px; background:#1976d2; color:#fff; border:none; border-radius:8px; padding:6px 14px; font-size:15px; font-weight:600; cursor:pointer;">Close</button>
+      </div>
+    </div>
       </div>
 
       <section id="status" class="status import-status">

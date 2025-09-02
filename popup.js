@@ -1,4 +1,52 @@
 (() => {
+  // Modal preview helpers
+  function showImportPreviewModal(tableHtml) {
+    const modal = document.getElementById('importPreviewModal');
+    const tableDiv = document.getElementById('importPreviewTable');
+    if (modal && tableDiv) {
+      tableDiv.innerHTML = tableHtml;
+      modal.classList.remove('hidden');
+    }
+  }
+  function hideImportPreviewModal() {
+    const modal = document.getElementById('importPreviewModal');
+    if (modal) modal.classList.add('hidden');
+  }
+  document.getElementById('closePreviewModal')?.addEventListener('click', hideImportPreviewModal);
+  // Preview Import button logic
+  document.getElementById('previewImport')?.addEventListener('click', () => {
+    const csv = (document.getElementById('csv-import')?.value || '').trim();
+    if (!csv) {
+      setStatus('error', 'Please paste CSV first (or push from Export tab).');
+      return;
+    }
+    // Validate and parse CSV
+    function parseCsv(csv) {
+      const lines = csv.split(/\r?\n/).filter(l => l.trim());
+      if (lines.length < 2) return null;
+      const header = lines[0].split(',');
+      const rows = [];
+      for (let i = 1; i < lines.length; ++i) {
+        const row = lines[i].split(',');
+        rows.push(row);
+      }
+      return { header, rows };
+    }
+    const parsed = parseCsv(csv);
+    if (!parsed) {
+      setStatus('error', 'CSV must have a header and at least one data row.');
+      return;
+    }
+    // Build HTML table
+    let tableHtml = '<table><thead><tr>';
+    for (const col of parsed.header) tableHtml += `<th>${col}</th>`;
+    tableHtml += '</tr></thead><tbody>';
+    for (const row of parsed.rows) {
+      tableHtml += '<tr>' + row.map(val => `<td>${val}</td>`).join('') + '</tr>';
+    }
+    tableHtml += '</tbody></table>';
+    showImportPreviewModal(tableHtml);
+  });
   // Popout table of match dates (icon button)
   const showDatesTableIcon = document.getElementById('showDatesTableIcon');
   if (showDatesTableIcon) {
