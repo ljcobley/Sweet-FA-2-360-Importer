@@ -513,11 +513,35 @@ tabImport?.addEventListener('click', () => {
   }
 
   $('run')?.addEventListener('click', async () => {
-    setStatus('working', 'Sending to page…');
+    setStatus('working', 'Validating CSV…');
 
     const csv = (($('csv-import')?.value) || '').trim();
     if (!csv) { setStatus('error', 'Please paste CSV first (or push from Export tab).'); return; }
 
+    // CSV validation logic
+    function validateCsv(csv) {
+      const lines = csv.split(/\r?\n/).filter(l => l.trim());
+      const errors = [];
+      if (lines.length < 2) errors.push('CSV must have a header and at least one data row.');
+      const header = lines[0].split(',');
+      // Required columns (customize as needed)
+      const required = ['date','start_time','kickoff_time','end_time','duration','home','away','home_away','opponent','title','type','notes','visibility','meet_before','add_admins','add_players','location'];
+      const missing = required.filter(col => !header.includes(col));
+      if (missing.length) errors.push(`Missing columns: ${missing.join(', ')}`);
+      // Check each row has same number of columns
+      for (let i = 1; i < lines.length; ++i) {
+        const row = lines[i].split(',');
+        if (row.length !== header.length) errors.push(`Row ${i+1} has ${row.length} columns, expected ${header.length}.`);
+      }
+      return { valid: errors.length === 0, errors };
+    }
+    const validation = validateCsv(csv);
+    if (!validation.valid) {
+      setStatus('error', `CSV Error(s):\n${validation.errors.map(e => '- ' + e).join('\n')}`);
+      return;
+    }
+
+    setStatus('working', 'Sending to page…');
     // Persist what user is about to run, so a reopen still has it
     await saveToStorage({
       [STORAGE_KEYS.lastCsv]: { csv, ts: Date.now() },
