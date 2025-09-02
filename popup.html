@@ -40,8 +40,9 @@
     <!-- ========== EXPORT SCREEN (Full-Time) ========== -->
     <section id="screen-export" class="screen card">
       
-
-      <div class="form-group">
+      <button id="showExportOptions" type="button">Show Global Export Options</button>
+      <div id="exportOptionsContainer" class="form-group hidden">
+        <button id="hideExportOptions" type="button" style="margin-bottom:10px;">Hide Global Export Options</button>
         <div class="row">
           <label>Duration (mins)
             <input id="duration" type="number" min="1" step="1" value="60" />

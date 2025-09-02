@@ -102,6 +102,21 @@
   const elAddPlayers = $('addPlayers');              // RENAMED
   const elMyTeam     = $('myTeam');
 
+    // Toggle export options visibility
+    const showExportOptionsBtn = document.getElementById('showExportOptions');
+    const hideExportOptionsBtn = document.getElementById('hideExportOptions');
+    const exportOptionsContainer = document.getElementById('exportOptionsContainer');
+
+    if (showExportOptionsBtn && exportOptionsContainer && hideExportOptionsBtn) {
+      showExportOptionsBtn.addEventListener('click', () => {
+        exportOptionsContainer.classList.remove('hidden');
+        showExportOptionsBtn.classList.add('hidden');
+      });
+      hideExportOptionsBtn.addEventListener('click', () => {
+        exportOptionsContainer.classList.add('hidden');
+        showExportOptionsBtn.classList.remove('hidden');
+      });
+    }
   const elGen   = $('generate');
   const elCsvBox= $('csvBox');
   const elCsv   = $('csv');
