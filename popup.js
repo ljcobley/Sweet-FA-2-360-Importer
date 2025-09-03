@@ -604,8 +604,93 @@ tabImport?.addEventListener('click', () => {
       const csv = (($('csv-import')?.value) || '').trim();
       if (!csv) { setStatus('error', 'Please paste CSV first (or push from Export tab).'); return; }
 
-      // Show confirmation modal (skip validation, just show basic info)
+      // Parse CSV to infer "my team" (same logic as export tab)
+      let myTeamName = '';
+      try {
+        // Parse CSV rows
+        const rows = csv.split('\n').map(r => {
+          // Handle quoted CSV values
+          const arr = [];
+          let cur = '', inQuotes = false;
+          for (let i = 0; i < r.length; ++i) {
+            const c = r[i];
+            if (c === '"') inQuotes = !inQuotes;
+            else if (c === ',' && !inQuotes) { arr.push(cur); cur = ''; }
+            else cur += c;
+          }
+          arr.push(cur);
+          return arr;
+        });
+        // Find home/away columns
+        const header = rows[0] || [];
+        const homeIdx = header.findIndex(h => h.toLowerCase() === 'home');
+        const awayIdx = header.findIndex(h => h.toLowerCase() === 'away');
+        let basicMatches = [];
+        for (let i = 1; i < rows.length; ++i) {
+          const r = rows[i];
+          if (r.length > Math.max(homeIdx, awayIdx) && homeIdx !== -1 && awayIdx !== -1) {
+            basicMatches.push([null, r[homeIdx], r[awayIdx]]);
+          }
+        }
+        myTeamName = inferMyTeam(basicMatches, '');
+      } catch (e) { /* fallback: blank */ }
+
+      // Get selected calendar team name (from 360Player page)
+      let calendarTeam = '';
+      try {
+        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+        if (tab?.id && tab.url && /^https?:\/\/app\.360player\.com\//.test(tab.url)) {
+          const [result] = await chrome.scripting.executeScript({
+            target: { tabId: tab.id },
+            func: () => {
+              const el = document.querySelector('strong.HU89T05lxSvu6hqh3zEq');
+              return el ? el.textContent : '';
+            }
+          });
+          calendarTeam = result?.result || '';
+        }
+      } catch (e) { /* fallback: blank */ }
+
+      // Calculate number of events and date range
+      let numEvents = 0, dateMin = '', dateMax = '';
+      try {
+        // Find date column index
+        const dateIdx = header.findIndex(h => h.toLowerCase() === 'date');
+        const dateVals = [];
+        for (let i = 1; i < rows.length; ++i) {
+          const r = rows[i];
+          if (dateIdx !== -1 && r.length > dateIdx && r[dateIdx]) {
+            dateVals.push(r[dateIdx]);
+          }
+        }
+        numEvents = dateVals.length;
+        // Parse dates as YYYY-MM-DD for sorting
+        const parsedDates = dateVals.map(d => {
+          // Try to parse as YYYY-MM-DD, DD/MM/YYYY, or DD MMM YYYY
+          let m = d.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+          if (m) return new Date(`${m[1]}-${m[2]}-${m[3]}`);
+          m = d.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+          if (m) return new Date(`${m[3]}-${m[2]}-${m[1]}`);
+          m = d.match(/^(\d{1,2}) ([A-Za-z]{3,}) (\d{4})$/);
+          if (m) return new Date(`${m[3]}-${m[2]}-${m[1]}`);
+          // fallback: try Date.parse
+          const dt = new Date(d);
+          return isNaN(dt) ? null : dt;
+        }).filter(Boolean);
+        if (parsedDates.length) {
+          parsedDates.sort((a, b) => a - b);
+          const fmt = (dt) => dt.toISOString().slice(0, 10);
+          dateMin = fmt(parsedDates[0]);
+          dateMax = fmt(parsedDates[parsedDates.length - 1]);
+        }
+      } catch (e) { /* fallback: blank */ }
+
+      // Show confirmation modal with team, calendar, event count, and date range
       let detailsHtml = `<div style='margin-bottom:10px;'>Ready to import events from CSV.</div>`;
+      if (myTeamName) detailsHtml += `<div style='margin-bottom:8px;'><b>Team being imported:</b> <span style='color:#0d47a1;'>${myTeamName}</span></div>`;
+      if (calendarTeam) detailsHtml += `<div style='margin-bottom:8px;'><b>Target calendar:</b> <span style='color:#0d47a1;'>${calendarTeam}</span></div>`;
+      if (numEvents) detailsHtml += `<div style='margin-bottom:8px;'><b>Number of events:</b> <span style='color:#0d47a1;'>${numEvents}</span></div>`;
+      if (dateMin && dateMax) detailsHtml += `<div style='margin-bottom:8px;'><b>Date range:</b> <span style='color:#0d47a1;'>${dateMin}</span> to <span style='color:#0d47a1;'>${dateMax}</span></div>`;
       detailsHtml += `<div style='margin-bottom:10px;'>You can proceed or cancel.</div>`;
       showImportConfirmModal(detailsHtml, async () => {
         try {
