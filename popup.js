@@ -605,11 +605,10 @@ tabImport?.addEventListener('click', () => {
       if (!csv) { setStatus('error', 'Please paste CSV first (or push from Export tab).'); return; }
 
       // Parse CSV to infer "my team" (same logic as export tab)
-      let myTeamName = '';
+      // Always parse CSV rows and header for later use
+      let rows = [], header = [], myTeamName = '';
       try {
-        // Parse CSV rows
-        const rows = csv.split('\n').map(r => {
-          // Handle quoted CSV values
+        rows = csv.split('\n').map(r => {
           const arr = [];
           let cur = '', inQuotes = false;
           for (let i = 0; i < r.length; ++i) {
@@ -621,8 +620,7 @@ tabImport?.addEventListener('click', () => {
           arr.push(cur);
           return arr;
         });
-        // Find home/away columns
-        const header = rows[0] || [];
+        header = rows[0] || [];
         const homeIdx = header.findIndex(h => h.toLowerCase() === 'home');
         const awayIdx = header.findIndex(h => h.toLowerCase() === 'away');
         let basicMatches = [];
@@ -679,7 +677,13 @@ tabImport?.addEventListener('click', () => {
         }).filter(Boolean);
         if (parsedDates.length) {
           parsedDates.sort((a, b) => a - b);
-          const fmt = (dt) => dt.toISOString().slice(0, 10);
+          // Format as DD MMM YY (e.g., 03 Sep 25)
+          const fmt = (dt) => {
+            const day = String(dt.getDate()).padStart(2, '0');
+            const month = dt.toLocaleString('en-GB', { month: 'long' });
+            const year = String(dt.getFullYear()).slice(-2);
+            return `${day} ${month} ${year}`;
+          };
           dateMin = fmt(parsedDates[0]);
           dateMax = fmt(parsedDates[parsedDates.length - 1]);
         }
