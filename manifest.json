@@ -48,7 +48,7 @@
     },
     {
       "matches": ["*://app.360player.com/*"],
-      "js": ["content-import.js"],
+      "js": ["papaparse.min.js", "content-import.js"],
       "run_at": "document_idle"
     }
   ]

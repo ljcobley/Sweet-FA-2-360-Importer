@@ -582,177 +582,107 @@ tabImport?.addEventListener('click', () => {
 
   // Confirmation modal for import actions
   function showImportConfirmModal(detailsHtml, onConfirm) {
-    let modal = document.getElementById('importConfirmModal');
-    if (!modal) {
-      modal = document.createElement('div');
-      modal.id = 'importConfirmModal';
-      modal.style = 'position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,0.35);z-index:9999;display:flex;align-items:center;justify-content:center;';
-      document.body.appendChild(modal);
+    const modal = document.getElementById('importConfirmModal');
+    const detailsDiv = document.getElementById('importConfirmDetails');
+    const btnOk = document.getElementById('confirmImportBtn');
+    const btnCancel = document.getElementById('cancelImportBtn');
+    if (!modal || !detailsDiv || !btnOk || !btnCancel) {
+      alert('Import confirmation modal is missing required elements.');
+      return;
     }
-    // Always set innerHTML (for new or existing modal)
-    modal.innerHTML = `
-      <div style="background:#fff;padding:24px 28px;border-radius:10px;max-width:420px;width:95vw;box-shadow:0 4px 24px #0002;">
-        <div id="importConfirmDetails" style="margin-bottom:18px;font-size:15px;">${detailsHtml}</div>
-        <div style="display:flex;gap:16px;justify-content:flex-end;">
-          <button id="importConfirmCancel" style="padding:7px 18px;">Cancel</button>
-          <button id="importConfirmOk" style="padding:7px 18px;background:#1976d2;color:#fff;border:none;border-radius:4px;">Import</button>
-        </div>
-      </div>
-    `;
+    detailsDiv.innerHTML = detailsHtml;
+    modal.classList.remove('hidden');
     modal.style.display = 'flex';
-    // Always re-select the buttons after setting innerHTML
-    const btnCancel = document.getElementById('importConfirmCancel');
-    const btnOk = document.getElementById('importConfirmOk');
-    const cleanup = () => { modal.style.display = 'none'; };
-    if (btnCancel) btnCancel.onclick = () => { cleanup(); };
-    if (btnOk) btnOk.onclick = async () => { cleanup(); if (onConfirm) await onConfirm(); };
+    const cleanup = () => { modal.classList.add('hidden'); modal.style.display = 'none'; };
+    btnCancel.onclick = () => { cleanup(); };
+    btnOk.onclick = async () => { cleanup(); if (onConfirm) await onConfirm(); };
+    btnOk.focus();
   }
 
   $('run')?.addEventListener('click', async () => {
-    setStatus('working', 'Validating CSV…');
+    try {
+      const csv = (($('csv-import')?.value) || '').trim();
+      if (!csv) { setStatus('error', 'Please paste CSV first (or push from Export tab).'); return; }
 
-    const csv = (($('csv-import')?.value) || '').trim();
-    if (!csv) { setStatus('error', 'Please paste CSV first (or push from Export tab).'); return; }
+      // Show confirmation modal (skip validation, just show basic info)
+      let detailsHtml = `<div style='margin-bottom:10px;'>Ready to import events from CSV.</div>`;
+      detailsHtml += `<div style='margin-bottom:10px;'>You can proceed or cancel.</div>`;
+      showImportConfirmModal(detailsHtml, async () => {
+        try {
+          setStatus('working', 'Importing events…');
+          // Persist what user is about to run, so a reopen still has it
+          await saveToStorage({
+            [STORAGE_KEYS.lastCsv]: { csv, ts: Date.now() },
+            [STORAGE_KEYS.lastView]: 'import'
+          });
 
-    // CSV validation logic
-    function validateCsv(csv) {
-      const lines = csv.split(/\r?\n/).filter(l => l.trim());
-      const errors = [];
-      if (lines.length < 2) errors.push('CSV must have a header and at least one data row.');
-      const header = lines[0].split(',');
-      // Required columns (customize as needed)
-      const required = ['date','start_time','kickoff_time','end_time','duration','home','away','home_away','opponent','title','type','notes','visibility','meet_before','add_admins','add_players','location'];
-      const missing = required.filter(col => !header.includes(col));
-      if (missing.length) errors.push(`Missing columns: ${missing.join(', ')}`);
-      // Check each row has same number of columns
-      for (let i = 1; i < lines.length; ++i) {
-        const row = lines[i].split(',');
-        if (row.length !== header.length) errors.push(`Row ${i+1} has ${row.length} columns, expected ${header.length}.`);
-      }
-      return { valid: errors.length === 0, errors, header, lines };
-    }
-    const validation = validateCsv(csv);
-    if (!validation.valid) {
-      setStatus('error', `CSV Error(s):\n${validation.errors.map(e => '- ' + e).join('\n')}`);
-      return;
-    }
+          const options = {
+            mode: getMode(),
+            validateOnly: $('validateOnly')?.checked || false,
+            dedupe: $('dedupe')?.checked !== false // default true
+          };
 
-    // Identify 'my team' from CSV using same logic as export
-    function inferMyTeamFromCsv(header, lines) {
-      const idxHome = header.indexOf('home');
-      const idxAway = header.indexOf('away');
-      if (idxHome === -1 || idxAway === -1) return '';
-      const counts = new Map();
-      for (let i = 1; i < lines.length; ++i) {
-        const row = lines[i].split(',');
-        if (row.length <= Math.max(idxHome, idxAway)) continue;
-        const home = row[idxHome].trim();
-        const away = row[idxAway].trim();
-        counts.set(home, (counts.get(home) || 0) + 1);
-        counts.set(away, (counts.get(away) || 0) + 1);
-      }
-      const total = lines.length - 1;
-      const candidates = [...counts.entries()].filter(([, c]) => c === total).map(([n]) => n);
-      if (candidates.length === 1) return candidates[0];
-      return candidates.length ? candidates.join(', ') : '';
-    }
-    const myTeam = inferMyTeamFromCsv(validation.header, validation.lines);
+          const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+          if (!tab?.id) { setStatus('error', 'No active tab found.'); return; }
 
-    // Get team calendar name from import tab (if available)
-    let calendarTeam = '';
-    const teamNameDisplay = document.getElementById('teamNameDisplay');
-    if (teamNameDisplay && teamNameDisplay.textContent) {
-      const match = teamNameDisplay.textContent.match(/Selected Calendar Team: ([^<]+)/);
-      if (match) calendarTeam = match[1];
-    }
+          // Send start message
+          const startResp = await new Promise((resolve) => {
+            chrome.tabs.sendMessage(tab.id, { type: 'TEAM_BULK_IMPORT', payload: { csv, options } }, (resp) => {
+              if (chrome.runtime.lastError) {
+                resolve({ ok: false, error: chrome.runtime.lastError.message });
+                return;
+              }
+              resolve(resp || { ok: false });
+            });
+          });
 
-    // Count number of events to import
-    const numEvents = validation.lines.length - 1;
+          // Progress display
+          let progress = 0;
+          setStatus('working', `Importing events…`);
 
-    // Show confirmation modal
-    let detailsHtml = `<div style='margin-bottom:10px;'>Identified <b>My Team</b> from CSV: <span style='color:#0d47a1;'>${myTeam || '(not found)'}</span></div>`;
-    detailsHtml += `<div style='margin-bottom:10px;'>Target <b>Team Calendar</b>: <span style='color:#0d47a1;'>${calendarTeam || '(not found)'}</span></div>`;
-    detailsHtml += `<div style='margin-bottom:10px;'><b>Number of events to import:</b> <span style='color:#0d47a1;'>${numEvents}</span></div>`;
-    showImportConfirmModal(detailsHtml, async () => {
-      setStatus('working', 'Importing events…');
-      // Persist what user is about to run, so a reopen still has it
-      await saveToStorage({
-        [STORAGE_KEYS.lastCsv]: { csv, ts: Date.now() },
-        [STORAGE_KEYS.lastView]: 'import'
-      });
+          // Poll status
+          const result = await new Promise((resolve) => {
+            const started = Date.now();
+            const maxMs = 120000, intervalMs = 1500;
+            const timer = setInterval(() => {
+              if (Date.now() - started > maxMs) {
+                clearInterval(timer);
+                resolve({ finished: false, timeout: true });
+                return;
+              }
+              chrome.tabs.sendMessage(tab.id, { type: 'TEAM_BULK_STATUS' }, (status) => {
+                if (chrome.runtime.lastError) return; // ignore during navigation
+                if (status?.progress != null) {
+                  progress = status.progress;
+                  setStatus('working', `Importing events… (${progress})`);
+                }
+                if (status?.finished) { clearInterval(timer); resolve(status); }
+              });
+            }, intervalMs);
+          });
 
-      const options = {
-        mode: getMode(),
-        validateOnly: $('validateOnly')?.checked || false,
-        dedupe: $('dedupe')?.checked !== false // default true
-      };
-
-      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-      if (!tab?.id) { setStatus('error', 'No active tab found.'); return; }
-
-      // Send start message
-      const startResp = await new Promise((resolve) => {
-        chrome.tabs.sendMessage(tab.id, { type: 'TEAM_BULK_IMPORT', payload: { csv, options } }, (resp) => {
-          if (chrome.runtime.lastError) {
-            resolve({ ok: false, error: chrome.runtime.lastError.message });
+          // Show result modal (no event summary)
+          if (result.timeout) {
+            setStatus('warn', 'Timed out waiting. Check the page.');
+            showImportResultModal(false, 0, []);
             return;
           }
-          resolve(resp || { ok: false });
-        });
-      });
-
-      // Progress display
-      let progress = 0;
-      setStatus('working', `Importing events… (${progress}/${numEvents})`);
-
-      // Poll status
-      const result = await new Promise((resolve) => {
-        const started = Date.now();
-        const maxMs = 120000, intervalMs = 1500;
-        const timer = setInterval(() => {
-          if (Date.now() - started > maxMs) {
-            clearInterval(timer);
-            resolve({ finished: false, timeout: true });
+          if (result.error) {
+            setStatus('error', 'Failed: ' + result.error);
+            showImportResultModal(false, 0, []);
             return;
           }
-          chrome.tabs.sendMessage(tab.id, { type: 'TEAM_BULK_STATUS' }, (status) => {
-            if (chrome.runtime.lastError) return; // ignore during navigation
-            if (status?.progress != null) {
-              progress = status.progress;
-              setStatus('working', `Importing events… (${progress}/${numEvents})`);
-            }
-            if (status?.finished) { clearInterval(timer); resolve(status); }
-          });
-        }, intervalMs);
-      });
-
-      // Prepare event summary (date and title)
-      let eventSummaries = [];
-      if (validation.header && validation.lines) {
-        const idxDate = validation.header.indexOf('date');
-        const idxTitle = validation.header.indexOf('title');
-        for (let i = 1; i < validation.lines.length; ++i) {
-          const row = validation.lines[i].split(',');
-          eventSummaries.push({
-            date: row[idxDate] || '',
-            title: row[idxTitle] || ''
-          });
+          setStatus('ok', 'Done.');
+          showImportResultModal(true, 0, []);
+        } catch (err) {
+          setStatus('error', 'Unexpected error: ' + (err && err.message ? err.message : String(err)));
+          console.error('Import error:', err);
         }
-      }
-
-      if (result.timeout) {
-        setStatus('warn', 'Timed out waiting. Check the page.');
-        showImportResultModal(false, 0, []);
-        return;
-      }
-      if (result.error) {
-        setStatus('error', 'Failed: ' + result.error);
-        showImportResultModal(false, 0, []);
-        return;
-      }
-      setStatus('ok', 'Done.');
-      showImportResultModal(true, numEvents, eventSummaries);
-    });
+      });
+    } catch (err) {
+      setStatus('error', 'Unexpected error: ' + (err && err.message ? err.message : String(err)));
+      console.error('Import error:', err);
+    }
   });
 
   // Init
