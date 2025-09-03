@@ -69,48 +69,48 @@
   }
 
   // ---------- scrape → [header, home, away, location] ----------
-  function extractBasicMatches(container) {
-    const trs = Array.from(container.querySelectorAll("tr"));
+  // Updated for public Full Time site: parses pipe-separated rows
+  function extractBasicMatchesFromPublicPage() {
+    // New logic: extract from table rows
     const rows = [];
-    let currentHeader = "";
-    let expectingMatch = false;
-
-    for (let i = 0; i < trs.length; i++) {
-      const tr = trs[i];
-      const cells = Array.from(tr.querySelectorAll("th, td"));
-      if (!cells.length) continue;
-
-      const texts = cells.map((c) => clean(c.innerText)).filter(Boolean);
-
-      if ((cells.length === 1 && isDateHeader(texts[0])) || isDateHeader(texts.join(" "))) {
-        currentHeader = texts.join(" ");
-        expectingMatch = true;
-        continue;
-      }
-      if (!expectingMatch) continue;
-      if (isFooterRow(texts, tr)) { expectingMatch = false; continue; }
-
-      const data = texts.filter((t) => !isXvX(t) && !isSepToken(t));
-
-      if (data.length >= 2) {
-        const home = data[0] || "";
-        const away = data[1] || "";
-        let location = data.length > 2 ? data.slice(2).join(" ") : "";
-
-        // location may be on next single-cell row
-        if (!location && i + 1 < trs.length) {
-          const nextCells = Array.from(trs[i + 1].querySelectorAll("th, td"));
-          const nextTexts = nextCells.map((c) => clean(c.innerText)).filter(Boolean);
-          if (nextCells.length === 1 && nextTexts.length === 1 && !isDateHeader(nextTexts[0]) && !isFooterRow(nextTexts, trs[i + 1])) {
-            location = nextTexts[0];
-            i += 1;
-          }
-        }
-
-        if (currentHeader && home && away) rows.push([currentHeader, home, away, location]);
-        expectingMatch = false; // exactly one match for this header
+    const table = document.querySelector('.fixtures-table table');
+    if (!table) return rows;
+    const days = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    const pad2 = (n) => String(n).padStart(2, "0");
+    for (const tr of table.querySelectorAll('tbody tr')) {
+      const tds = tr.querySelectorAll('td');
+      if (tds.length < 8) continue;
+      // Date/Time
+      const dateCell = tds[1];
+      const spans = dateCell.querySelectorAll('span');
+      let dateStr = '', timeStr = '';
+      if (spans.length >= 2) {
+        dateStr = clean(spans[0].textContent);
+        timeStr = clean(spans[1].textContent);
       } else {
-        expectingMatch = false;
+        const parts = clean(dateCell.textContent).split(' ');
+        dateStr = parts[0] || '';
+        timeStr = parts[1] || '';
+      }
+      // Compose header as original date string for compatibility
+      let header = '';
+      let dtObj = null;
+      const m = dateStr.match(/(\d{2})\/(\d{2})\/(\d{2})/);
+      if (m && timeStr.match(/\d{2}:\d{2}/)) {
+        dtObj = new Date(`20${m[3]}-${m[2]}-${m[1]}T${timeStr}:00`);
+      }
+      if (dtObj && !isNaN(dtObj.getTime())) {
+        header = `${days[dtObj.getDay()]} ${pad2(dtObj.getDate())} ${months[dtObj.getMonth()]} ${dtObj.getFullYear()} ${pad2(dtObj.getHours())}:${pad2(dtObj.getMinutes())}`;
+      } else {
+        header = `${dateStr} ${timeStr}`.trim();
+      }
+      // Home and away
+      const home = clean(tds[2].textContent);
+      const away = clean(tds[6].textContent);
+      const venue = clean(tds[7].textContent);
+      if (header && home && away) {
+        rows.push([header, home, away, venue]);
       }
     }
     return rows;
@@ -316,103 +316,7 @@
     });
 
     const close = () => overlay.remove();
-    closeBtn.addEventListener("click", close);
-    overlay.addEventListener("click", (e) => { if (e.target === overlay) close(); });
-    document.addEventListener("keydown", function esc(e) {
-      if (e.key === "Escape") { close(); document.removeEventListener("keydown", esc, true); }
-    }, true);
-
-    footer.append(copyBtn, dlBtn, closeBtn);
-    modal.append(header, ta, footer);
-    overlay.appendChild(modal);
-    document.body.appendChild(overlay);
-
-    // Auto-focus & select for quick copy
     setTimeout(() => { ta.focus(); ta.select(); }, 50);
-  }
+}
 
-  // ---------- UI wiring ----------
-  function addButton(container) {
-    if (container.__ftcsv_btn_added) return;
-    container.__ftcsv_btn_added = true;
-
-    const btn = document.createElement("button");
-    btn.type = "button";
-    btn.textContent = "Download Full-Time CSV";
-    btn.className = "__ftcsv_btn";
-    btn.style.cssText = `
-      margin: 8px 0; padding: 6px 10px; border: 1px solid #888; border-radius: 6px;
-      background: #f7f7f7; cursor: pointer; font: 14px/1.2 system-ui,-apple-system,Segoe UI,Roboto,Arial;
-    `;
-    container.insertAdjacentElement("afterend", btn);
-
-    btn.addEventListener("click", (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-
-      // Runtime prompts
-      const duration = promptNumber("Match length in minutes? (e.g., 60)", 60);
-      if (duration === null) return;
-
-      const titlePrefixRaw = window.prompt("Title prefix? (e.g., 'League Game vs ')", "League Game vs ");
-      if (titlePrefixRaw === null) return;
-      const titlePrefix = titlePrefixRaw;
-
-      const visibility = promptVisibility("private");
-      if (visibility === null) return;
-
-      const meetBefore = promptNumber("Meet how many minutes before kickoff? (e.g., 30)", 30);
-      if (meetBefore === null) return;
-
-      const addAdmins = promptBool("Add admins? Type TRUE or FALSE", "FALSE");
-      if (addAdmins === null) return;
-
-      const addUsers = promptBool("Add users? Type TRUE or FALSE", "FALSE");
-      if (addUsers === null) return;
-
-      const basic = extractBasicMatches(container);
-      if (!basic.length) {
-        alert("I couldn't parse any matches yet. Wait for the widget to finish loading, then try again.");
-        return;
-      }
-
-      const rows = buildFinalRows(basic, {
-        durationMinutes: duration,
-        titlePrefix,
-        visibility,
-        meetBefore,
-        addAdmins,
-        addUsers
-      });
-
-      const csv = toCSV(rows);
-      const filename = `${container.id || "fulltime"}-matches.csv`;
-
-      // Show preview modal instead of auto-downloading
-      showCsvModal(filename, csv);
-    }, { capture: true });
-  }
-
-  function watchWidget(container) {
-    addButton(container);
-    const obs = new MutationObserver(() => {
-      if (container.querySelector("table")) addButton(container);
-    });
-    obs.observe(container, { childList: true, subtree: true });
-  }
-
-  function findWidgets(root = document) {
-    return Array.from(root.querySelectorAll('div[id^="lrep"]'));
-  }
-
-  // Boot
-  findWidgets().forEach(watchWidget);
-  const pageObserver = new MutationObserver((muts) => {
-    for (const m of muts) {
-      for (const node of m.addedNodes) {
-        if (node instanceof HTMLElement) findWidgets(node).forEach(watchWidget);
-      }
-    }
-  });
-  pageObserver.observe(document.documentElement, { childList: true, subtree: true });
 })();

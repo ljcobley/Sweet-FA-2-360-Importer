@@ -15,91 +15,10 @@
           html += `<div class='event-summary-row' data-idx='${idx}'>${ev.date} — ${ev.title}</div>`;
         });
         summaryDiv.innerHTML = html;
-        summaryDiv.onclick = (e) => {
-          const row = e.target.closest('.event-summary-row');
-          if (row) {
-            const idx = row.getAttribute('data-idx');
-            if (eventSummaries[idx]) {
-              alert(`Date: ${eventSummaries[idx].date}\nTitle: ${eventSummaries[idx].title}`);
-            }
-          }
-        };
-      } else {
-        summaryDiv.innerHTML = '';
       }
-      modal.classList.remove('hidden');
-      closeBtn.onclick = () => { modal.classList.add('hidden'); };
     }
   }
-  // Modal confirmation helpers
-  function showImportConfirmModal(detailsHtml, onConfirm) {
-    const modal = document.getElementById('importConfirmModal');
-    const detailsDiv = document.getElementById('importConfirmDetails');
-    const confirmBtn = document.getElementById('confirmImportBtn');
-    const cancelBtn = document.getElementById('cancelImportBtn');
-    if (modal && detailsDiv && confirmBtn && cancelBtn) {
-      detailsDiv.innerHTML = detailsHtml;
-      modal.classList.remove('hidden');
-      // Remove previous listeners
-      confirmBtn.onclick = null;
-      cancelBtn.onclick = null;
-      confirmBtn.onclick = () => {
-        modal.classList.add('hidden');
-        onConfirm();
-      };
-      cancelBtn.onclick = () => {
-        modal.classList.add('hidden');
-      };
-    }
-  }
-  // Modal preview helpers
-  function showImportPreviewModal(tableHtml) {
-    const modal = document.getElementById('importPreviewModal');
-    const tableDiv = document.getElementById('importPreviewTable');
-    if (modal && tableDiv) {
-      tableDiv.innerHTML = tableHtml;
-      modal.classList.remove('hidden');
-    }
-  }
-  function hideImportPreviewModal() {
-    const modal = document.getElementById('importPreviewModal');
-    if (modal) modal.classList.add('hidden');
-  }
-  document.getElementById('closePreviewModal')?.addEventListener('click', hideImportPreviewModal);
-  // Preview Import button logic
-  document.getElementById('previewImport')?.addEventListener('click', () => {
-    const csv = (document.getElementById('csv-import')?.value || '').trim();
-    if (!csv) {
-      setStatus('error', 'Please paste CSV first (or push from Export tab).');
-      return;
-    }
-    // Validate and parse CSV
-    function parseCsv(csv) {
-      const lines = csv.split(/\r?\n/).filter(l => l.trim());
-      if (lines.length < 2) return null;
-      const header = lines[0].split(',');
-      const rows = [];
-      for (let i = 1; i < lines.length; ++i) {
-        const row = lines[i].split(',');
-        rows.push(row);
-      }
-      return { header, rows };
-    }
-    const parsed = parseCsv(csv);
-    if (!parsed) {
-      setStatus('error', 'CSV must have a header and at least one data row.');
-      return;
-    }
-    // Build HTML table
-    let tableHtml = '<table><thead><tr>';
-    for (const col of parsed.header) tableHtml += `<th>${col}</th>`;
-    tableHtml += '</tr></thead><tbody>';
-    for (const row of parsed.rows) {
-      tableHtml += '<tr>' + row.map(val => `<td>${val}</td>`).join('') + '</tr>';
-    }
-    tableHtml += '</tbody></table>';
-    showImportPreviewModal(tableHtml);
-  });
+  // ...existing code...
   // Popout table of match dates (icon button)
   const showDatesTableIcon = document.getElementById('showDatesTableIcon');
   if (showDatesTableIcon) {
@@ -282,8 +201,9 @@
 
   const setStatusExport = (t) => { if (statusExport) statusExport.textContent = t || ''; };
 
-  // function that runs IN PAGE to scrape Full-Time widgets
+  // function that runs IN PAGE to scrape Full-Time widgets or public fixtures page
   function scrapeFullTimeInPage() {
+    // Try widget scrape first
     const clean = (s) => (s ?? "").replace(/\u00A0/g, " ").replace(/\s+/g, " ").trim();
     const isDateHeader = (text) => /^(Mon|Tue|Wed|Thu|Fri|Sat|Sun)\s+\d{1,2}\s+[A-Za-z]{3,}\s+\d{4}\s+\d{1,2}:\d{2}\b/.test(clean(text));
     const isXvX = (text) => /^\s*X\s*v\s*X\s*$/i.test(clean(text));
@@ -347,10 +267,56 @@
       return rows;
     }
 
+    // Try widget containers first
     const containers = Array.from(document.querySelectorAll('div[id^="lrep"]'));
-    const all = [];
+    let all = [];
     for (const c of containers) all.push(...extractFromContainer(c));
-    return all; // array of [headerText, home, away, location]
+    // If widget scrape fails, try public page scrape
+    if (all.length) return all;
+
+    // --- Try public Full Time fixtures table scrape ---
+    const rows = [];
+    const table = document.querySelector('.fixtures-table table');
+    if (!table) return rows;
+    const days = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    const pad2 = (n) => String(n).padStart(2, "0");
+    for (const tr of table.querySelectorAll('tbody tr')) {
+      const tds = tr.querySelectorAll('td');
+      if (tds.length < 8) continue;
+      // Date/Time
+      const dateCell = tds[1];
+      const spans = dateCell.querySelectorAll('span');
+      let dateStr = '', timeStr = '';
+      if (spans.length >= 2) {
+        dateStr = clean(spans[0].textContent);
+        timeStr = clean(spans[1].textContent);
+      } else {
+        const parts = clean(dateCell.textContent).split(' ');
+        dateStr = parts[0] || '';
+        timeStr = parts[1] || '';
+      }
+      // Compose header as original date string for compatibility
+      let header = '';
+      let dtObj = null;
+      const m = dateStr.match(/(\d{2})\/(\d{2})\/(\d{2})/);
+      if (m && timeStr.match(/\d{2}:\d{2}/)) {
+        dtObj = new Date(`20${m[3]}-${m[2]}-${m[1]}T${timeStr}:00`);
+      }
+      if (dtObj && !isNaN(dtObj.getTime())) {
+        header = `${days[dtObj.getDay()]} ${pad2(dtObj.getDate())} ${months[dtObj.getMonth()]} ${dtObj.getFullYear()} ${pad2(dtObj.getHours())}:${pad2(dtObj.getMinutes())}`;
+      } else {
+        header = `${dateStr} ${timeStr}`.trim();
+      }
+      // Home and away
+      const home = clean(tds[2].textContent);
+      const away = clean(tds[6].textContent);
+      const venue = clean(tds[7].textContent);
+      if (header && home && away) {
+        rows.push([header, home, away, venue]);
+      }
+    }
+    return rows;
   }
 
   const monthNum = (mon) => ({jan:1,feb:2,mar:3,apr:4,may:5,jun:6,jul:7,aug:8,sep:9,oct:10,nov:11,dec:12}[mon.toLowerCase().slice(0,3)] || 1);
@@ -461,6 +427,7 @@
       }
 
       const basic = await runScrape(tab.id);
+
       if (!basic || !basic.length) {
         setStatusExport("No Full-Time widget data found on this page.");
         $('generate').disabled = false;
@@ -497,7 +464,7 @@
 
       // Display my team
       if (myTeamValue) {
-        myTeamDisplay.innerHTML = `<span class="icon">⚽</span> <span>Identified My Team: <span style='color:#0d47a1;'>${myTeamValue}</span></span>`;
+        myTeamDisplay.innerHTML = `<span class=\"icon\">⚽</span> <span>Identified My Team: <span style='color:#0d47a1;'>${myTeamValue}</span></span>`;
         myTeamDisplay.style.display = 'flex';
       } else {
         myTeamDisplay.style.display = 'none';
@@ -510,7 +477,7 @@
       setTimeout(() => { $('csv').focus(); $('csv').select(); }, 50);
     } catch (err) {
       console.error(err);
-      setStatusExport(err.message || "Error while generating CSV.");
+      setStatusExport((err && err.message ? err.message : "Error while generating CSV."));
       myTeamDisplay.textContent = '';
     } finally {
       $('generate').disabled = false;
@@ -611,6 +578,34 @@ tabImport?.addEventListener('click', () => {
     if (!dbgOverrideMode?.checked) return 'full';
     const r = document.querySelector('input[name="dbgMode"]:checked');
     return r ? r.value : 'full';
+  }
+
+  // Confirmation modal for import actions
+  function showImportConfirmModal(detailsHtml, onConfirm) {
+    let modal = document.getElementById('importConfirmModal');
+    if (!modal) {
+      modal = document.createElement('div');
+      modal.id = 'importConfirmModal';
+      modal.style = 'position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,0.35);z-index:9999;display:flex;align-items:center;justify-content:center;';
+      document.body.appendChild(modal);
+    }
+    // Always set innerHTML (for new or existing modal)
+    modal.innerHTML = `
+      <div style="background:#fff;padding:24px 28px;border-radius:10px;max-width:420px;width:95vw;box-shadow:0 4px 24px #0002;">
+        <div id="importConfirmDetails" style="margin-bottom:18px;font-size:15px;">${detailsHtml}</div>
+        <div style="display:flex;gap:16px;justify-content:flex-end;">
+          <button id="importConfirmCancel" style="padding:7px 18px;">Cancel</button>
+          <button id="importConfirmOk" style="padding:7px 18px;background:#1976d2;color:#fff;border:none;border-radius:4px;">Import</button>
+        </div>
+      </div>
+    `;
+    modal.style.display = 'flex';
+    // Always re-select the buttons after setting innerHTML
+    const btnCancel = document.getElementById('importConfirmCancel');
+    const btnOk = document.getElementById('importConfirmOk');
+    const cleanup = () => { modal.style.display = 'none'; };
+    if (btnCancel) btnCancel.onclick = () => { cleanup(); };
+    if (btnOk) btnOk.onclick = async () => { cleanup(); if (onConfirm) await onConfirm(); };
   }
 
   $('run')?.addEventListener('click', async () => {

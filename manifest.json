@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "Football Fixture Tools",
+  "name": "Sweet FA to 360 Importer",
   "version": "1.0.0",
   "description": "Export fixtures from FA Full-Time and import them into 360Player team calendars.",
   "action": {
