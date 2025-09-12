@@ -520,18 +520,25 @@ async function fillAnyText(scope, elOrSel, text) {
     el.blur();
   }
 }
-async function fillInput(scope, selOrEl, value) {
+async function fillInput(scope, selOrEl, value, maxTries = 3) {
   const el = typeof selOrEl === 'string' ? q(scope, selOrEl) : selOrEl;
-  if (!el) { console.warn(`Missing field: ${selOrEl}`); return; }
+  if (!el) { console.warn(`Missing field: ${selOrEl}`); return false; }
   mark(el);
   if (IMPORT_OPTIONS.mode === 'highlight') return;
-  el.focus();
-  setNativeValue(el, '');
-  el.dispatchEvent(new Event('input', { bubbles: true }));
-  setNativeValue(el, value ?? '');
-  el.dispatchEvent(new Event('input', { bubbles: true }));
-  el.dispatchEvent(new Event('change', { bubbles: true }));
-  el.blur();
+  for (let i = 0; i < maxTries; ++i) {
+    el.focus();
+    setNativeValue(el, '');
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+    setNativeValue(el, value ?? '');
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+    el.dispatchEvent(new Event('change', { bubbles: true }));
+    el.blur();
+    await sleep(120);
+  if (el.value === value) return true;
+    await sleep(200);
+  }
+  console.warn(`Field value not reliably set after retries: ${selOrEl}`);
+  return false;
 }
 
 // ===== Type like a human (for Opponent) =====
@@ -784,12 +791,12 @@ async function fillCommonFields(scope, row) {
   }
 
   const timeInputs = qa(scope, 'input[type="time"]');
-  if (row.start_time && timeInputs[0]) await fillInput(scope, timeInputs[0], row.start_time);
-  if (row.end_time   && timeInputs[1]) await fillInput(scope, timeInputs[1],   row.end_time);
+  if (row.start_time && timeInputs[0]) await fillInput(scope, timeInputs[0], row.start_time, 3);
+  if (row.end_time   && timeInputs[1]) await fillInput(scope, timeInputs[1],   row.end_time, 3);
 
   if (row.meet_before != null && row.meet_before !== '') {
     const meetEl = await waitAndGet(scope, 'input[name="meetBeforeMinutes"][type="number"]', 6000);
-    if (meetEl) await fillInput(scope, meetEl, String(row.meet_before));
+  if (meetEl) await fillInput(scope, meetEl, String(row.meet_before), 3);
     else console.warn('Missing field (meetBefore) after wait.');
   }
 
@@ -864,19 +871,30 @@ async function fillGameFields(scope, row) {
 
   // 3) Kickoff time
   if (row.kickoff_time) {
-    const koEl = await waitAndGet(scope, [
-      SELECTORS.game.kickoff,
-      'input[name="time"][type="time"]'
-    ], 8000);
-    if (koEl) await fillInput(scope, koEl, row.kickoff_time);
-    else console.warn('Missing field (kickoff) after wait.');
-    await sleep(120);
+    const trySetKickoff = async (container, value, maxTries = 3) => {
+      for (let i = 0; i < maxTries; ++i) {
+        const koEl = await waitAndGet(container, [
+          SELECTORS.game.kickoff,
+          'input[name="time"][type="time"]'
+        ], 8000);
+        if (koEl) {
+          await fillInput(container, koEl, value);
+          await sleep(120);
+          // Verify value
+          if (koEl.value === value) return true;
+        }
+        await sleep(200);
+      }
+      console.warn('Kickoff time not reliably set after retries.');
+      return false;
+    };
+    await trySetKickoff(scope, row.kickoff_time, 3);
   }
 
   // 4) Duration (AFTER opponent and kickoff)
   if (row.duration) {
     const durEl = await waitAndGet(scope, 'input[name="duration"][type="number"]', 8000);
-    if (durEl) await fillInput(scope, durEl, String(row.duration));
+  if (durEl) await fillInput(scope, durEl, String(row.duration), 3);
     else console.warn('Missing field (duration) after wait.');
     await sleep(120);
   }
@@ -923,17 +941,29 @@ async function createOne(row) {
 
   // 4c) Final Kickoff time commit just before saving (some UIs re-render on focus/scroll)
   if (row.kickoff_time) {
-    const koEl = await waitAndGet(scope, [
-      SELECTORS.game.kickoff,
-      'input[name="time"][type="time"]'
-    ], 3000);
-    if (koEl) await fillInput(scope, koEl, row.kickoff_time);
+    const trySetKickoff = async (container, value, maxTries = 3) => {
+      for (let i = 0; i < maxTries; ++i) {
+        const koEl = await waitAndGet(container, [
+          SELECTORS.game.kickoff,
+          'input[name="time"][type="time"]'
+        ], 3000);
+        if (koEl) {
+          await fillInput(container, koEl, value);
+          await sleep(120);
+          if (koEl.value === value) return true;
+        }
+        await sleep(200);
+      }
+      console.warn('Kickoff time not reliably set after retries.');
+      return false;
+    };
+    await trySetKickoff(scope, row.kickoff_time, 3);
   }
 
   // 4d) Final Duration commit just before saving
   if (row.duration) {
     const durEl = await waitAndGet(scope, 'input[name="duration"][type="number"]', 3000);
-    if (durEl) await fillInput(scope, durEl, String(row.duration));
+  if (durEl) await fillInput(scope, durEl, String(row.duration), 3);
   }
 
   // 5) Save + Finish confirm
@@ -947,11 +977,23 @@ async function createOne(row) {
 
   // If the form stays visible for a moment, re-commit kickoff time and duration only
   if (row.kickoff_time) {
-    const koEl = await waitAndGet(scope, [
-      SELECTORS.game.kickoff,
-      'input[name="time"][type="time"]'
-    ], 3000);
-    if (koEl) await fillInput(scope, koEl, row.kickoff_time);
+    const trySetKickoff = async (container, value, maxTries = 3) => {
+      for (let i = 0; i < maxTries; ++i) {
+        const koEl = await waitAndGet(container, [
+          SELECTORS.game.kickoff,
+          'input[name="time"][type="time"]'
+        ], 3000);
+        if (koEl) {
+          await fillInput(container, koEl, value);
+          await sleep(120);
+          if (koEl.value === value) return true;
+        }
+        await sleep(200);
+      }
+      console.warn('Kickoff time not reliably set after retries.');
+      return false;
+    };
+    await trySetKickoff(scope, row.kickoff_time, 3);
   }
   if (row.duration) {
     const durEl = await waitAndGet(scope, 'input[name="duration"][type="number"]', 3000);
@@ -964,15 +1006,27 @@ async function createOne(row) {
   if (clickedFinish) {
     // Last chance kickoff time and duration commit
     if (row.kickoff_time) {
-      const koEl = await waitAndGet(document, [
-        SELECTORS.game.kickoff,
-        'input[name="time"][type="time"]'
-      ], 3000);
-      if (koEl) await fillInput(document, koEl, row.kickoff_time);
+      const trySetKickoff = async (container, value, maxTries = 3) => {
+        for (let i = 0; i < maxTries; ++i) {
+          const koEl = await waitAndGet(container, [
+            SELECTORS.game.kickoff,
+            'input[name="time"][type="time"]'
+          ], 3000);
+          if (koEl) {
+            await fillInput(container, koEl, value);
+            await sleep(120);
+            if (koEl.value === value) return true;
+          }
+          await sleep(200);
+        }
+        console.warn('Kickoff time not reliably set after retries.');
+        return false;
+      };
+      await trySetKickoff(document, row.kickoff_time, 3);
     }
     if (row.duration) {
       const durEl = await waitAndGet(document, 'input[name="duration"][type="number"]', 3000);
-      if (durEl) await fillInput(document, durEl, String(row.duration));
+    if (durEl) await fillInput(document, durEl, String(row.duration), 3);
     }
     await sleep(600);
   }
@@ -1077,6 +1131,10 @@ async function runJobFromCurrentIndex() {
   updateStatus({ finished: true, navigating: false });
   clearJob();
   window.__bulkLastRun = { finished: true, at: Date.now() };
+  // Send explicit message to popup to trigger UI update
+  try {
+    chrome.runtime.sendMessage({ type: 'TEAM_BULK_FINISHED', payload: { finished: true, total: (rows || []).length } });
+  } catch (e) { console.warn('Could not send TEAM_BULK_FINISHED message:', e); }
 }
 
 // ===== Resume after navigation =====

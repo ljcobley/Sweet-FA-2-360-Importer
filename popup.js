@@ -1,3 +1,15 @@
+(function handleImportFinishedMessage() {
+  chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+    if (msg?.type === 'TEAM_BULK_FINISHED') {
+      console.log('[Popup] Received TEAM_BULK_FINISHED message:', msg);
+      setStatus('ok', 'Done.');
+      showImportResultModal(true, msg?.payload?.total || 0, []);
+      if (sendResponse) sendResponse({ acknowledged: true });
+      return true;
+    }
+    return false;
+  });
+})();
 (() => {
   // Modal for import result
   function showImportResultModal(success, numAdded, eventSummaries) {
@@ -729,13 +741,24 @@ tabImport?.addEventListener('click', () => {
           let progress = 0;
           setStatus('working', `Importing events…`);
 
-          // Poll status
+          // Poll status, but also listen for TEAM_BULK_FINISHED
           const result = await new Promise((resolve) => {
             const started = Date.now();
             const maxMs = 120000, intervalMs = 1500;
+            let finished = false;
+            const handler = (msg) => {
+              if (msg?.type === 'TEAM_BULK_FINISHED') {
+                finished = true;
+                clearInterval(timer);
+                chrome.runtime.onMessage.removeListener(handler);
+                resolve({ finished: true, total: msg?.payload?.total });
+              }
+            };
+            chrome.runtime.onMessage.addListener(handler);
             const timer = setInterval(() => {
               if (Date.now() - started > maxMs) {
                 clearInterval(timer);
+                chrome.runtime.onMessage.removeListener(handler);
                 resolve({ finished: false, timeout: true });
                 return;
               }
@@ -745,7 +768,11 @@ tabImport?.addEventListener('click', () => {
                   progress = status.progress;
                   setStatus('working', `Importing events… (${progress})`);
                 }
-                if (status?.finished) { clearInterval(timer); resolve(status); }
+                if (status?.finished && !finished) {
+                  clearInterval(timer);
+                  chrome.runtime.onMessage.removeListener(handler);
+                  resolve(status);
+                }
               });
             }, intervalMs);
           });
