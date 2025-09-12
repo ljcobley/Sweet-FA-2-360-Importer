@@ -788,8 +788,9 @@ tabImport?.addEventListener('click', () => {
             showImportResultModal(false, 0, []);
             return;
           }
-          setStatus('ok', 'Done.');
-          showImportResultModal(true, 0, []);
+          const numImported = result.total || result.numAdded || result.progress || 0;
+          setStatus('ok', `Done. Imported ${numImported} events.`);
+          showImportResultModal(true, numImported, []);
         } catch (err) {
           setStatus('error', 'Unexpected error: ' + (err && err.message ? err.message : String(err)));
           console.error('Import error:', err);
