@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "Sweet FA to 360 Importer",
+  "name": "Full-Time to Full-Circle",
   "version": "1.0.0",
   "description": "Export fixtures from FA Full-Time and import them into 360Player team calendars.",
   "action": {

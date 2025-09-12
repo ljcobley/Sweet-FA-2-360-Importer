@@ -1,4 +1,4 @@
-# Sweet FA 2 360 Importer
+# Full-Time to Full-Circle
 
 A Google Chrome extension that allows you to seamlessly import **FA Full-Time football fixtures** into your **360Player team calendar**.
 
