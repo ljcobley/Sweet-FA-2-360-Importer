@@ -1,9 +1,46 @@
+// Top-level setStatus function so it's available everywhere
+const statusDot = document.querySelector('#status .dot');
+const statusText = document.querySelector('#status .text');
+function setStatus(state, text) {
+  if (statusDot) statusDot.className = 'dot ' + state;
+  if (statusText) statusText.textContent = text;
+}
+
+// Move showImportResultModal definition above handleImportFinishedMessage
+function showImportResultModal(success, numAdded, eventSummaries) {
+  const modal = document.getElementById('importResultModal');
+  const detailsDiv = document.getElementById('importResultDetails');
+  const summaryDiv = document.getElementById('importEventSummary');
+  const closeBtn = document.getElementById('closeImportResultModal');
+  if (modal && detailsDiv && summaryDiv && closeBtn) {
+    detailsDiv.innerHTML = success
+      ? `<span style='color:#2e7d32; font-weight:600;'>Success!</span> Imported <b>${numAdded}</b> events.`
+      : `<span style='color:#c62828; font-weight:600;'>Failed</span> to import events.`;
+    if (success && eventSummaries && eventSummaries.length) {
+      let html = '<div><b>Click to show details:</b></div>';
+      eventSummaries.forEach((ev, idx) => {
+        html += `<div class='event-summary-row' data-idx='${idx}'>${ev.date} — ${ev.title}</div>`;
+      });
+      summaryDiv.innerHTML = html;
+    }
+  }
+}
+
 (function handleImportFinishedMessage() {
+  let lastDeduped = 0;
   chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+    if (msg?.type === 'TEAM_BULK_DEDUPED') {
+      lastDeduped = msg?.payload?.deduped || 0;
+      return true;
+    }
     if (msg?.type === 'TEAM_BULK_FINISHED') {
       console.log('[Popup] Received TEAM_BULK_FINISHED message:', msg);
-      setStatus('ok', 'Done.');
-      showImportResultModal(true, msg?.payload?.total || 0, []);
+      let statusMsg = `Done. Imported ${msg?.payload?.total || 0} events.`;
+      if (lastDeduped > 0) statusMsg += ` (${lastDeduped} deduplicated)`;
+      setStatus('ok', statusMsg);
+      let details = [];
+      if (lastDeduped > 0) details.push(`${lastDeduped} events were deduplicated and skipped.`);
+      showImportResultModal(true, msg?.payload?.total || 0, details);
       if (sendResponse) sendResponse({ acknowledged: true });
       return true;
     }
@@ -476,7 +513,7 @@
 
       // Display my team
       if (myTeamValue) {
-        myTeamDisplay.innerHTML = `<span class=\"icon\">⚽</span> <span>Identified My Team: <span style='color:#0d47a1;'>${myTeamValue}</span></span>`;
+  myTeamDisplay.innerHTML = `<span class=\"icon\">⚽</span> <span>Identified My Team: <span class='team-name'>${myTeamValue}</span></span>`;
         myTeamDisplay.style.display = 'flex';
       } else {
         myTeamDisplay.style.display = 'none';
@@ -558,7 +595,7 @@ async function display360PlayerTeamName() {
       const importSection = document.getElementById('screen-import');
       if (importSection) importSection.insertBefore(teamNameDisplay, importSection.firstChild);
     }
-    teamNameDisplay.innerHTML = teamName ? `<span class="icon">📅</span> <span>Selected Calendar Team: <span style='color:#0d47a1;'>${teamName}</span></span>` : '';
+  teamNameDisplay.innerHTML = teamName ? `<span class="icon">📅</span> <span>Selected Calendar Team: <span class="team-name">${teamName}</span></span>` : '';
     teamNameDisplay.style.display = teamName ? 'flex' : 'none';
   } catch (e) {
     // Fail silently
@@ -602,7 +639,9 @@ tabImport?.addEventListener('click', () => {
       alert('Import confirmation modal is missing required elements.');
       return;
     }
-    detailsDiv.innerHTML = detailsHtml;
+  // Replace field value spans: <span class='field-value'>value</span>
+  const styledHtml = detailsHtml.replace(/(<span[^>]*class=['"]?field-value['"]?[^>]*>)(.*?)(<\/span>)/gi, "$1<span style='color:#ffe801; font-weight:bold;'>$2</span>$3");
+  detailsDiv.innerHTML = styledHtml;
     modal.classList.remove('hidden');
     modal.style.display = 'flex';
     const cleanup = () => { modal.classList.add('hidden'); modal.style.display = 'none'; };
@@ -703,10 +742,10 @@ tabImport?.addEventListener('click', () => {
 
       // Show confirmation modal with team, calendar, event count, and date range
       let detailsHtml = `<div style='margin-bottom:10px;'>Ready to import events from CSV.</div>`;
-      if (myTeamName) detailsHtml += `<div style='margin-bottom:8px;'><b>Team being imported:</b> <span style='color:#0d47a1;'>${myTeamName}</span></div>`;
-      if (calendarTeam) detailsHtml += `<div style='margin-bottom:8px;'><b>Target calendar:</b> <span style='color:#0d47a1;'>${calendarTeam}</span></div>`;
-      if (numEvents) detailsHtml += `<div style='margin-bottom:8px;'><b>Number of events:</b> <span style='color:#0d47a1;'>${numEvents}</span></div>`;
-      if (dateMin && dateMax) detailsHtml += `<div style='margin-bottom:8px;'><b>Date range:</b> <span style='color:#0d47a1;'>${dateMin}</span> to <span style='color:#0d47a1;'>${dateMax}</span></div>`;
+  if (myTeamName) detailsHtml += `<div style='margin-bottom:8px;'><b>Team being imported:</b> <span style='color:#ffe801; font-weight:bold;'>${myTeamName}</span></div>`;
+  if (calendarTeam) detailsHtml += `<div style='margin-bottom:8px;'><b>Target calendar:</b> <span style='color:#ffe801; font-weight:bold;'>${calendarTeam}</span></div>`;
+  if (numEvents) detailsHtml += `<div style='margin-bottom:8px;'><b>Number of events:</b> <span style='color:#ffe801; font-weight:bold;'>${numEvents}</span></div>`;
+  if (dateMin && dateMax) detailsHtml += `<div style='margin-bottom:8px;'><b>Date range:</b> <span style='color:#ffe801; font-weight:bold;'>${dateMin}</span> to <span style='color:#ffe801; font-weight:bold;'>${dateMax}</span></div>`;
       detailsHtml += `<div style='margin-bottom:10px;'>You can proceed or cancel.</div>`;
       showImportConfirmModal(detailsHtml, async () => {
         try {

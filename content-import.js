@@ -1183,10 +1183,66 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         ? Papa.parse(msg.payload.csv, { header: true, skipEmptyLines: true }).data
         : simpleCsvParse(msg.payload.csv);
 
-      const normalized = (rows || []).map(r => { if (r.date) r.date = toIsoDate(r.date); return r; });
+      // Deduplication detection (robust)
+      let dedupedCount = 0;
+      let normalized = (rows || []).map(r => {
+        if (r.date) r.date = toIsoDate(r.date);
+        if (r.title) r.title = String(r.title).trim();
+        return r;
+      });
+      // Fetch existing events from the calendar (visible on page)
+      let existingEvents = [];
+      try {
+        // Try multiple selectors for robustness
+        const eventNodes = qa(document, '[data-testid="calendar-event"], .calendar-event, .event, [role="listitem"]');
+        existingEvents = eventNodes.map(ev => {
+          // Debug: log each event node's HTML and text
+          console.log('[Bulk Import] Event node:', ev.outerHTML, 'Text:', ev.textContent);
+          let date = '', title = '';
+          // Try common selectors
+          const dateEl = ev.querySelector('.event-date, [data-testid="event-date"], .date, .calendar-date');
+          const titleEl = ev.querySelector('.event-title, [data-testid="event-title"], .title, .calendar-title');
+          // Fallback: try to parse from text if not found
+          if (dateEl) date = dateEl.textContent.trim();
+          if (titleEl) title = titleEl.textContent.trim();
+          if (!date || !title) {
+            // Try to parse from container text (e.g., "03 Sep 2025 - Match vs TeamX")
+            const txt = (ev.textContent || '').trim();
+            const m = txt.match(/(\d{2,4}[-\/ ]\d{2}[-\/ ]\d{2,4}|\d{2} [A-Za-z]{3,} \d{2,4})\s*[-–—]\s*(.+)/);
+            if (m) {
+              date = toIsoDate(m[1]);
+              title = m[2].trim();
+            }
+          }
+          // Normalize
+          date = toIsoDate(date);
+          title = String(title).trim();
+          return { date, title };
+        });
+        // Log for debugging
+        console.log('[Bulk Import] Existing events found for deduplication:', existingEvents);
+      } catch (e) { existingEvents = []; }
+
+      if (currentJob?.options?.dedupe !== false) {
+        // Deduplicate by event title and date (trimmed, not lowercased)
+        const seen = new Set();
+        const filtered = [];
+        for (const r of normalized) {
+          const key = r.title;
+          // Check for duplicate in current batch (by title only)
+          if (seen.has(key)) { dedupedCount++; continue; }
+          // Check for duplicate in existing calendar events (by title only)
+          if (existingEvents.some(ev => ev.title === r.title)) {
+            dedupedCount++; continue;
+          }
+          seen.add(key);
+          filtered.push(r);
+        }
+        normalized = filtered;
+      }
 
       const mode = (msg?.payload?.options?.mode) || IMPORT_OPTIONS.mode || 'full';
-      currentJob = { rows: normalized, options: { ...msg?.payload?.options, mode }, index: 0, resumeAfterNav: false };
+  currentJob = { rows: normalized, options: { ...msg?.payload?.options, mode }, index: 0, resumeAfterNav: false, dedupedCount };
       saveJob(currentJob);
 
       if (MANUAL_GROUP_PREFIX) setStoredPrefix(MANUAL_GROUP_PREFIX.replace(/\/$/, ''));
@@ -1212,6 +1268,10 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       }
 
       await runJobFromCurrentIndex();
+      // After import, send deduplication info to popup
+      try {
+        chrome.runtime.sendMessage({ type: 'TEAM_BULK_DEDUPED', payload: { deduped: dedupedCount } });
+      } catch (e) { console.warn('Could not send TEAM_BULK_DEDUPED message:', e); }
     } catch (err) {
       console.error('[Bulk Import] Fatal:', err);
       updateStatus({ finished: true, error: String(err), navigating: false });
